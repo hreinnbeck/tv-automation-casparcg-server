@@ -170,6 +170,11 @@ public:
 		return L"[audio-decoder] " + u16(codec_context_->codec->long_name);
 	}
 
+	std::wstring print_codec() const
+	{
+		return u16(codec_context_->codec->long_name);
+	}
+
 	uint64_t ffmpeg_channel_layout() const
 	{
 		if (codec_context_->channel_layout == 0)
@@ -186,5 +191,6 @@ std::shared_ptr<core::mutable_audio_buffer> audio_decoder::poll() { return impl_
 int	audio_decoder::num_channels() const { return impl_->codec_context_->channels; }
 uint64_t audio_decoder::ffmpeg_channel_layout() const { return impl_->ffmpeg_channel_layout(); }
 std::wstring audio_decoder::print() const{return impl_->print();}
+std::wstring audio_decoder::print_codec() const { return impl_->print_codec(); }
 
 }}

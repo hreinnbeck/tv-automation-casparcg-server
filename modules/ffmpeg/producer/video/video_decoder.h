@@ -56,6 +56,7 @@ public:
 	bool						is_progressive() const;
 
 	std::wstring				print() const;
+	std::wstring				print_codec() const;
 
 private:
 	struct implementation;

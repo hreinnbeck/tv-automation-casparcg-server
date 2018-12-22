@@ -46,6 +46,7 @@ public:
 	uint64_t ffmpeg_channel_layout() const;
 
 	std::wstring print() const;
+	std::wstring print_codec() const;
 private:
 	struct implementation;
 	spl::shared_ptr<implementation> impl_;

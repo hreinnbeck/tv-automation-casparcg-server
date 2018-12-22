@@ -162,6 +162,11 @@ public:
 	{
 		return L"[video-decoder] " + u16(codec_context_->codec->long_name);
 	}
+
+	std::wstring print_codec() const
+	{
+		return u16(codec_context_->codec->long_name) + L" " + u16(codec_context_->codec->profiles->name);
+	}
 };
 
 video_decoder::video_decoder(const spl::shared_ptr<AVFormatContext>& context) : impl_(new implementation(context)){}
@@ -175,5 +180,6 @@ uint32_t video_decoder::nb_frames() const{return impl_->nb_frames();}
 uint32_t video_decoder::file_frame_number() const{return static_cast<uint32_t>(impl_->file_frame_number_);}
 bool	video_decoder::is_progressive() const{return impl_->is_progressive_;}
 std::wstring video_decoder::print() const{return impl_->print();}
+std::wstring video_decoder::print_codec() const { return impl_->print_codec(); }
 
 }}

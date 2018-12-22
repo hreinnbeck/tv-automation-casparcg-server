@@ -94,6 +94,9 @@ struct ffmpeg_producer : public core::frame_producer_base
 	std::unique_ptr<video_decoder>						video_decoder_;
 	std::vector<std::unique_ptr<audio_decoder>>			audio_decoders_;
 	std::unique_ptr<frame_muxer>						muxer_;
+	std::wstring										audiocodec;
+	double												audiochannels;
+	std::wstring										videocodec;
 
         caspar::executor worker_;
         std::atomic<bool> abort_;
@@ -140,6 +143,8 @@ public:
 			video_decoder_.reset(new video_decoder(input_.context()));
 			if (!thumbnail_mode_)
 				CASPAR_LOG(info) << print() << L" " << video_decoder_->print();
+			
+			videocodec = video_decoder_->print_codec();
 
 			constraints_.width.set(video_decoder_->width());
 			constraints_.height.set(video_decoder_->height());
@@ -147,6 +152,7 @@ public:
 		catch (averror_stream_not_found&)
 		{
 			//CASPAR_LOG(warning) << print() << " No video-stream found. Running without video.";
+			videocodec = L"No video";
 		}
 		catch (...)
 		{
@@ -165,6 +171,9 @@ public:
 			for (unsigned stream_index = 0; stream_index < input_.context()->nb_streams; ++stream_index)
 			{
 				auto stream = input_.context()->streams[stream_index];
+				
+				audiocodec = L"No audio";
+				audiochannels = 0;
 
 				if (stream->codec->codec_type != AVMediaType::AVMEDIA_TYPE_AUDIO)
 					continue;
@@ -196,6 +205,9 @@ public:
 						audio_decoders_.at(0)->num_channels(),
 						audio_decoders_.at(0)->ffmpeg_channel_layout(),
 						custom_channel_order);
+				
+				audiocodec = audio_decoders_.back()->print_codec();
+				audiochannels = audio_decoders_.at(0)->num_channels();
 			}
 			else if (audio_decoders_.size() > 1)
 			{
@@ -203,6 +215,9 @@ public:
 					.select(std::mem_fn(&audio_decoder::num_channels))
 					.aggregate(0, std::plus<int>());
 				auto ffmpeg_channel_layout = av_get_default_channel_layout(num_channels);
+				
+				audiocodec = audio_decoders_.back()->print_codec();
+				audiochannels = num_channels;
 
 				channel_layout = get_audio_channel_layout(
 						num_channels,
@@ -347,9 +362,23 @@ public:
 
 		*monitor_subject_	<< core::monitor::message("/file/time")			% (file_frame_number()/fps)
 																			% (file_nb_frames()/fps)
-							<< core::monitor::message("/file/frame")			% static_cast<int32_t>(file_frame_number())
+							<< core::monitor::message("/file/frame")		% static_cast<int32_t>(file_frame_number())
 																			% static_cast<int32_t>(file_nb_frames())
+                            // Clip sends [0] current frame count [1] duration with seek [3] current frame from first frame [4] total frames
+							// It makes more sense to include this all at once instead of OSC clients listening to data from two different addresses
+							// Could have added this to frame instead but it might not be backwards compatible for some clients
+							<< core::monitor::message("/file/clip")			% static_cast<double>(frame_number_)
+																			% static_cast<double>(nb_frames())
+																			% static_cast<double>(file_frame_number())
+																			% static_cast<double>(file_nb_frames())
+							// These are the in and out frame numbers
+							<< core::monitor::message("/file/markers")		% static_cast<double>(input_.in())
+																			% static_cast<double>(input_.out())
 							<< core::monitor::message("/file/fps")			% fps
+							<< core::monitor::message("/file/channels")		% audiochannels
+							<< core::monitor::message("/file/videocodec")   % videocodec
+							<< core::monitor::message("/file/audiocodec")	% audiocodec
+							<< core::monitor::message("/file/info")			% print_mode()
 							<< core::monitor::message("/file/path")			% path_relative_to_media_
 							<< core::monitor::message("/loop")				% input_.loop();
 	}

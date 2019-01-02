@@ -165,7 +165,7 @@ public:
 
 	std::wstring print_codec() const
 	{
-		return u16(codec_context_->codec->long_name) + L" " + u16(codec_context_->codec->profiles->name);
+			return u16(codec_context_->codec->long_name);
 	}
 };
 

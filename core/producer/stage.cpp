@@ -224,7 +224,7 @@ struct stage::impl : public std::enable_shared_from_this<impl>
                            bool                                   preview,
                            bool                                   auto_play)
     {
-		*monitor_subject_ << monitor::message("/layer/" + std::to_string(index) + "/event/load") % true;	
+		*monitor_subject_ << monitor::message("/layer/" + std::to_string(index) + "/event/load") % true;
         return executor_.begin_invoke([=] { get_layer(index).load(producer, preview, auto_play_delta); },
                                       task_priority::high_priority);
     }

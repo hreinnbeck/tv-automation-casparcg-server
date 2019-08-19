@@ -26,8 +26,8 @@ cmake -G "Visual Studio 14 2015" -A x64 .. || goto :error
 
 :: Build with MSBuild
 echo Building...
-msbuild "CasparCG Server.sln" /t:Clean /p:Configuration=RelWithDebInfo || goto :error
-msbuild "CasparCG Server.sln" /p:Configuration=RelWithDebInfo /m:%BUILD_PARALLEL_THREADS% || goto :error
+msbuild "CasparCG Server.sln" /t:Clean /p:Configuration=Release || goto :error
+msbuild "CasparCG Server.sln" /p:Configuration=Release /m:%BUILD_PARALLEL_THREADS% || goto :error
 
 :: Create server folder to later zip
 set SERVER_FOLDER=CasparCG Server
@@ -44,8 +44,8 @@ copy ..\deploy\general\CasparCG_Server_2.0-brochure.pdf "%SERVER_FOLDER%" || got
 :: Copy binaries
 echo Copying binaries...
 copy shell\*.dll "%SERVER_FOLDER%\server" || goto :error
-copy shell\RelWithDebInfo\casparcg.exe "%SERVER_FOLDER%\server" || goto :error
-copy shell\RelWithDebInfo\casparcg.pdb "%SERVER_FOLDER%\server" || goto :error
+copy shell\Release\casparcg.exe "%SERVER_FOLDER%\server" || goto :error
+REM copy shell\Release\casparcg.pdb "%SERVER_FOLDER%\server" || goto :error
 copy ..\shell\casparcg_auto_restart.bat "%SERVER_FOLDER%\server" || goto :error
 copy shell\casparcg.config "%SERVER_FOLDER%\server" || goto :error
 copy shell\*.ttf "%SERVER_FOLDER%\server" || goto :error

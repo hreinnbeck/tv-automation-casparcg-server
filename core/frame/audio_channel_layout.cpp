@@ -42,7 +42,13 @@ audio_channel_layout::audio_channel_layout()
 }
 
 audio_channel_layout::audio_channel_layout(int num_channels, std::wstring type_, const std::wstring& channel_order_)
-	: num_channels(num_channels)
+	: audio_channel_layout(type_, num_channels, type_, channel_order_)
+{
+}
+
+audio_channel_layout::audio_channel_layout(std::wstring name_, int num_channels, std::wstring type_, const std::wstring& channel_order_)
+	: name(std::move(name_))
+	, num_channels(num_channels)
 	, type(std::move(type_))
 {
 	if (num_channels < 1)
@@ -139,10 +145,11 @@ void audio_channel_layout_repository::register_all_layouts(const boost::property
 		auto num_channels	= ptree_get<int>(layout.second, L"<xmlattr>.num-channels");
 		auto channel_order	= layout.second.get<std::wstring>(L"<xmlattr>.channel-order", L"");
 
-		boost::to_upper(name);
+		auto upper_name = std::wstring(name);
+		boost::to_upper(upper_name);
 		self.layouts_.insert(std::make_pair(
-				std::move(name),
-				audio_channel_layout(num_channels, std::move(type), channel_order)));
+				std::move(upper_name),
+				audio_channel_layout(std::move(name), num_channels, std::move(type), channel_order)));
 	}
 }
 

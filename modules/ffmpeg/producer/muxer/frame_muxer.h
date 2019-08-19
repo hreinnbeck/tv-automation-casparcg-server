@@ -65,6 +65,8 @@ public:
 	boost::rational<int> out_framerate() const;
 
 	uint32_t calc_nb_frames(uint32_t nb_frames) const;
+
+	const std::wstring& audio_channel_layout_name() const;
 private:
 	struct impl;
 	spl::shared_ptr<impl> impl_;

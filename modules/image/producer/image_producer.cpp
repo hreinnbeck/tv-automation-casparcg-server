@@ -130,7 +130,8 @@ struct image_producer : public core::frame_producer_base
 
 	core::draw_frame receive_impl() override
 	{
-		monitor_subject_ << core::monitor::message("/file/path") % description_;
+		monitor_subject_	<< core::monitor::message("/producer/type") % std::wstring(L"image")
+							<< core::monitor::message("/file/path") % description_;
 
 		return frame_;
 	}

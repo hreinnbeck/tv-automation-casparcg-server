@@ -30,6 +30,7 @@
 
 #include "AMCPCommandQueue.h"
 #include "amcp_command_repository.h"
+#include "amcp_args.h"
 
 #include <common/env.h>
 
@@ -416,20 +417,57 @@ bool try_match_sting(const std::vector<std::wstring>& params, sting_info& stingI
 
     auto start_ind = static_cast<int>(match - params.begin());
 
-    if (params.size() <= start_ind + 1) {
-        // No mask filename
-        return false;
-    }
+	if (params.size() <= start_ind + 1) {
+		// No mask filename
+		return false;
+	}
 
-    stingInfo.mask_filename = params.at(start_ind + 1);
+	auto params_token = params.at(start_ind + 1);
+	if (is_args_token(params_token)) {
+		auto args = tokenize_args(params_token);
 
-    if (params.size() > start_ind + 2) {
-        stingInfo.trigger_point = boost::lexical_cast<int>(params.at(start_ind + 2));
-    }
+		std::wstring val;
+		if (!get_arg_value(args, L"MASK", val)) {
+			// TODO - throw error?
+			// No mask filename
+			return false;
+		}
+		stingInfo.mask_filename = val;
 
-    if (params.size() > start_ind + 3) {
-        stingInfo.overlay_filename = params.at(start_ind + 3);
-    }
+		if (get_arg_value(args, L"trigger_point", val)) {
+			int val2 = boost::lexical_cast<int>(val);
+			if (val2 > 0) {
+				stingInfo.trigger_point = val2;
+			}
+		}
+		if (get_arg_value(args, L"overlay", val)) {
+			stingInfo.overlay_filename = val;
+		}
+
+		if (get_arg_value(args, L"audio_fade_start", val)) {
+			int val2 = boost::lexical_cast<int>(val);
+			if (val2 > 0) {
+				stingInfo.audio_fade_start = val2;
+			}
+		}
+		if (get_arg_value(args, L"audio_fade_duration", val)) {
+			int val2 = boost::lexical_cast<int>(val);
+			if (val2 > 0) {
+				stingInfo.audio_fade_duration = val2;
+			}
+		}
+
+	} else {
+		stingInfo.mask_filename = params.at(start_ind + 1);
+
+		if (params.size() > start_ind + 2) {
+			stingInfo.trigger_point = boost::lexical_cast<int>(params.at(start_ind + 2));
+		}
+
+		if (params.size() > start_ind + 3) {
+			stingInfo.overlay_filename = params.at(start_ind + 3);
+		}
+	}
 
     return true;
 }

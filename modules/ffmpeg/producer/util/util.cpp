@@ -681,7 +681,7 @@ core::audio_channel_layout get_audio_channel_layout(int num_channels, std::uint6
 			auto& type			= type_and_channel_order.at(0);
 			auto& order			= type_and_channel_order.at(1);
 
-			return core::audio_channel_layout(num_channels, std::move(type), order);
+			return core::audio_channel_layout(channel_layout_spec, num_channels, std::move(type), order);
 		}
 		else // Preconfigured named channel layout selected.
 		{
@@ -699,11 +699,11 @@ core::audio_channel_layout get_audio_channel_layout(int num_channels, std::uint6
 	if (!layout)
 	{
 		if (num_channels == 1)
-			return core::audio_channel_layout(num_channels, L"mono", L"FC");
+			return core::audio_channel_layout(L"mono", num_channels, L"mono", L"FC");
 		else if (num_channels == 2)
-			return core::audio_channel_layout(num_channels, L"stereo", L"FL FR");
+			return core::audio_channel_layout(L"stereo", num_channels, L"stereo", L"FL FR");
 		else
-			return core::audio_channel_layout(num_channels, L"", L""); // Passthru without named channels as is.
+			return core::audio_channel_layout(L"passthru", num_channels, L"", L""); // Passthru without named channels as is.
 	}
 
 	// What FFmpeg calls "channel layout" is only the "layout type" of a channel layout in
@@ -768,7 +768,7 @@ core::audio_channel_layout get_audio_channel_layout(int num_channels, std::uint6
 		return core::audio_channel_layout(num_channels, L"downmix",			L"DL DR");
 	default:
 		// Passthru
-		return core::audio_channel_layout(num_channels, L"", L"");
+		return core::audio_channel_layout(L"passthru", num_channels, L"", L"");
 	}
 }
 

@@ -488,4 +488,5 @@ uint32_t frame_muxer::calc_nb_frames(uint32_t nb_frames) const {return impl_->ca
 bool frame_muxer::video_ready() const{return impl_->video_ready();}
 bool frame_muxer::audio_ready() const{return impl_->audio_ready();}
 boost::rational<int> frame_muxer::out_framerate() const { return impl_->out_framerate(); }
+const std::wstring& frame_muxer::audio_channel_layout_name() const { return impl_->audio_channel_layout_.name; }
 }}

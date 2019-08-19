@@ -362,7 +362,9 @@ public:
 
 		*monitor_subject_	<< core::monitor::message("/profiler/time")		% frame_timer_.elapsed() % (1.0/out_fps());
 
-		*monitor_subject_	<< core::monitor::message("/file/time")			% (file_frame_number()/fps)
+		*monitor_subject_	<< core::monitor::message("/producer/type")		% std::wstring(L"ffmpeg")
+							<< core::monitor::message("/producer/channel_layout") % muxer_->audio_channel_layout_name()
+							<< core::monitor::message("/file/time")			% (file_frame_number()/fps)
 																			% (file_nb_frames()/fps)
 							<< core::monitor::message("/file/frame")		% static_cast<int32_t>(file_frame_number())
 																			% static_cast<int32_t>(file_nb_frames())

@@ -35,11 +35,13 @@ namespace caspar { namespace core {
 
 struct audio_channel_layout final
 {
+	std::wstring				name;
 	int							num_channels;
 	std::wstring				type;
 	std::vector<std::wstring>	channel_order;
 
 	audio_channel_layout(int num_channels, std::wstring type, const std::wstring& channel_order);
+	audio_channel_layout(std::wstring name, int num_channels, std::wstring type, const std::wstring& channel_order);
 	std::vector<int> indexes_of(const std::wstring& channel_name) const;
 	std::wstring print() const;
 	static const audio_channel_layout& invalid();

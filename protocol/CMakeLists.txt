@@ -10,6 +10,7 @@ set(SOURCES
 		amcp/AMCPProtocolStrategy.cpp
 		amcp/amcp_command_repository.cpp
 		amcp/amcp_command_repository_wrapper.cpp
+		amcp/amcp_args.cpp
 
 		cii/CIICommandsImpl.cpp
 		cii/CIIProtocolStrategy.cpp
@@ -45,6 +46,7 @@ set(HEADERS
 		amcp/amcp_command_repository_wrapper.h
 		amcp/amcp_shared.h
 		amcp/amcp_command_context.h
+		amcp/amcp_args.h
 
 		cii/CIICommand.h
 		cii/CIICommandsImpl.h

@@ -227,7 +227,9 @@ class decklink_producer
             const auto flags = video->GetFlags();
             has_signal_ = !(flags & bmdFrameHasNoInputSource);
             
-            monitor_subject_ << core::monitor::message("/file/name") % model_name_
+            monitor_subject_ << core::monitor::message("/producer/type") % std::wstring(L"decklink")
+                             << core::monitor::message("/producer/channel_layout") % channel_layout_.name
+                             << core::monitor::message("/file/name") % model_name_
                              << core::monitor::message("/file/path") % device_index_
                              << core::monitor::message("/file/has_signal") % has_signal_;
 

@@ -32,6 +32,7 @@ std::size_t tokenize(const std::wstring& message, std::list<std::wstring>& pToke
     std::wstring currentToken;
 
     bool inQuote        = false;
+	int inParamList     = 0;
     bool getSpecialCode = false;
 
     for (unsigned int charIndex = 0; charIndex < message.size(); ++charIndex) {
@@ -59,22 +60,34 @@ std::size_t tokenize(const std::wstring& message, std::list<std::wstring>& pToke
             continue;
         }
 
-        if (message[charIndex] == L' ' && inQuote == false) {
+        if (message[charIndex] == L' ' && inQuote == false && inParamList == 0) {
             if (!currentToken.empty()) {
                 pTokenVector.push_back(currentToken);
                 currentToken.clear();
             }
             continue;
-        }
-
-        if (message[charIndex] == L'\"') {
+        } else if (!inQuote && message[charIndex] == L'(') {
+			inParamList++;
+			//continue;
+		} else if (!inQuote && message[charIndex] == L')') {
+			inParamList--;
+			if (inParamList == 0) {
+				currentToken += message[charIndex];
+				pTokenVector.push_back(currentToken);
+				currentToken.clear();
+				continue;
+			}
+			//continue;
+		} else if (message[charIndex] == L'\"') {
             inQuote = !inQuote;
 
-            if (!currentToken.empty() || !inQuote) {
-                pTokenVector.push_back(currentToken);
-                currentToken.clear();
-            }
-            continue;
+			if (inParamList == 0) {
+				if (!inQuote) {
+					pTokenVector.push_back(currentToken);
+					currentToken.clear();
+				}
+				continue;
+			}
         }
 
         currentToken += message[charIndex];

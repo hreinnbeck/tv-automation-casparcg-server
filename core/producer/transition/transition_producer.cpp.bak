@@ -239,14 +239,8 @@ public:
 		}
 		else if(info_.type == transition_type::wipe)
 		{
-			if (info_.direction == transition_direction::from_right || info_.direction == transition_direction::from_top) {
 			d_frame1.transform().image_transform.clip_scale[axis] = delta1;
 			d_frame2.transform().image_transform.clip_scale[axis] = delta2;
-			}
-			else {
-				d_frame1.transform().image_transform.clip_translation[axis] = (1.0 - delta1);
-				d_frame2.transform().image_transform.clip_translation[axis] = (1.0 - delta2);
-			}
 		}
 
 		const auto s_frame = s_frame1.transform() == s_frame2.transform() ? s_frame2 : draw_frame::interlace(s_frame1, s_frame2, mode_);

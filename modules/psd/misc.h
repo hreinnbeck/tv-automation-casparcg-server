@@ -124,12 +124,13 @@ std::wstring color_mode_to_string(color_mode c);
 
 enum class layer_tag : int {
 	none = 0,
-	placeholder = 1,
+	producer = 1,
 	explicit_dynamic = 2,
 	moveable = 4,
 	resizable = 8,
 	rasterized = 16,
-	cornerpin = 32//,
+	cornerpin = 32,
+	cg_producer = 64,
 	//all = 63
 };
 ENUM_ENABLE_BITWISE(layer_tag);

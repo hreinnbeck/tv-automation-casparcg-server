@@ -111,12 +111,54 @@ void init(module_dependencies dependencies)
 	dependencies.producer_registry->register_producer_factory(L"Text Producer", create_text_producer, describe_text_producer);
 }
 
+class font_filename_cache
+{
+private:
+	std::map<std::wstring, std::wstring> fonts_;
+	std::mutex mutex_;
+
+public:
+	static std::shared_ptr<font_filename_cache>& get()
+	{
+		static auto cache = std::make_shared<font_filename_cache>();
+		return cache;
+	}
+
+	std::wstring find_font_file(const text_info& info) {
+		std::wstring filename = L"";
+		{
+			// Pull value from cache
+			std::unique_lock<std::mutex> lock(mutex_);
+			auto it = fonts_.find(info.font);
+			if (it != fonts_.end())
+				filename = (*it).second;
+		}
+
+		// Check cached value still looks valid
+		if (filename != L"" && boost::filesystem::exists(filename)) {
+			return filename;
+		}
+
+		// Calculate new value
+		auto fonts = enumerate_fonts();
+		auto it = std::find_if(fonts.begin(), fonts.end(), font_comparer(info.font));
+		filename = (it != fonts.end()) ? (*it).second : L"";
+
+		if (filename != L"") {
+			// Write back to cache
+			std::unique_lock<std::mutex> lock(mutex_);
+			fonts_[info.font] = filename;
+		}
+
+		return filename;
+	};
+};
+
 text_info& find_font_file(text_info& info)
 {
-	auto& font_name = info.font;
-	auto fonts = enumerate_fonts();
-	auto it = std::find_if(fonts.begin(), fonts.end(), font_comparer(font_name));
-	info.font_file = (it != fonts.end()) ? (*it).second : L"";
+	auto cache = font_filename_cache::get();
+	info.font_file = cache->find_font_file(info);
+
 	return info;
 }
 
@@ -143,24 +185,24 @@ struct text_producer::impl
 	variable_impl<double>					current_bearing_y_;
 	variable_impl<double>					current_protrude_under_y_;
 	draw_frame								frame_;
-	text::texture_atlas						atlas_						{ 1024, 512, 4 };
+	text::texture_atlas_set					atlas_						{ 1024, 1024, 4 };
+	std::vector<const_frame>				atlas_frames_;
 	text::texture_font						font_;
-	const_frame								atlas_frame_;
+	text::color<double>						color_;
+	bool									croppable_;
 
 public:
-	explicit impl(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone)
+	explicit impl(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone, bool croppable)
 		: frame_factory_(frame_factory)
 		, x_(x), y_(y)
 		, parent_width_(parent_width), parent_height_(parent_height)
 		, standalone_(standalone)
-		, font_(atlas_, text::find_font_file(text_info), !standalone)
+		, font_(atlas_, text::find_font_file(text_info), text_info.color)
+		, color_(text_info.color)
+		, croppable_(croppable)
 	{
-		//TODO: examine str to determine which unicode_blocks to load
-		font_.load_glyphs(text::unicode_block::Basic_Latin, text_info.color);
-		font_.load_glyphs(text::unicode_block::Latin_1_Supplement, text_info.color);
-		font_.load_glyphs(text::unicode_block::Latin_Extended_A, text_info.color);
-
-		atlas_frame_ = create_atlas_frame();
+		font_.load_blocks_for_string(str);
+		atlas_frames_ = create_atlas_frames();
 
 		tracking_.value().set(text_info.tracking);
 		scale_x_.value().set(text_info.scale_x);
@@ -186,28 +228,66 @@ public:
 		CASPAR_LOG(info) << print() << L" Initialized";
 	}
 
-	core::const_frame create_atlas_frame() const
+	std::vector<core::const_frame> create_atlas_frames() const
 	{
-		core::pixel_format_desc pfd(core::pixel_format::bgra);
-		pfd.planes.push_back(core::pixel_format_desc::plane(static_cast<int>(atlas_.width()), static_cast<int>(atlas_.height()), static_cast<int>(atlas_.depth())));
-		auto frame = frame_factory_->create_frame(this, pfd, core::audio_channel_layout::invalid());
-		memcpy(frame.image_data().data(), atlas_.data(), frame.image_data().size());
-		return std::move(frame);
+		std::vector<core::const_frame> res;
+
+		for (int i = 0; i < atlas_.size(); i++)
+		{
+			core::pixel_format_desc pfd(core::pixel_format::bgra);
+			pfd.planes.push_back(core::pixel_format_desc::plane(static_cast<int>(atlas_.width()), static_cast<int>(atlas_.height()), static_cast<int>(atlas_.depth())));
+			auto frame = frame_factory_->create_frame(this, pfd, core::audio_channel_layout::invalid());
+			memcpy(frame.image_data().data(), atlas_.data(i), frame.image_data().size());
+			res.push_back(std::move(frame));
+		}
+
+		return res;
 	}
 
 	void generate_frame()
 	{
+		const std::wstring str = text_.value().get();
+		const bool updated_atlas = font_.load_blocks_for_string(str);
+		if (updated_atlas)
+			atlas_frames_ = create_atlas_frames();
+
 		text::string_metrics metrics;
 		font_.set_tracking(tracking_.value().get());
 
-		auto vertex_stream = font_.create_vertex_stream(text_.value().get(), x_, y_, parent_width_, parent_height_, &metrics, shear_.value().get());
-		auto frame = atlas_frame_.with_geometry(frame_geometry(frame_geometry::geometry_type::quad_list, std::move(vertex_stream)));
+		std::vector<text::text_char> vertex_stream = font_.create_vertex_stream(str, x_, y_, parent_width_, parent_height_, !standalone_, &metrics, shear_.value().get());
+
+		std::vector<draw_frame> res;
+		for (auto it = atlas_frames_.begin(); it != atlas_frames_.end(); ++it)
+		{
+			const int index = static_cast<int>(it - atlas_frames_.begin());
+
+			std::vector<frame_geometry::coord> coords;
+			for (auto it2 = vertex_stream.begin(); it2 != vertex_stream.end(); ++it2) 
+			{
+				if (it2->atlas_index != index)
+					continue;
+
+				coords.push_back(it2->ul_coord);
+				coords.push_back(it2->ur_coord);
+				coords.push_back(it2->lr_coord);
+				coords.push_back(it2->ll_coord);
+			}
+
+			if (coords.size() == 0)
+				continue;
+
+			// Text is not vertically aligned within the default crop, so don't crop unless explicitly opted in
+			auto type = croppable_ ? frame_geometry::geometry_type::quad_list_croppable : frame_geometry::geometry_type::quad_list;
+			const_frame frame = it->with_geometry(frame_geometry(type, std::move(coords)));
+
+			res.push_back(std::move(draw_frame(std::move(frame))));
+		}
 
 		this->constraints_.width.set(metrics.width * this->scale_x_.value().get());
 		this->constraints_.height.set(metrics.height * this->scale_y_.value().get());
 		current_bearing_y_.value().set(metrics.bearingY);
 		current_protrude_under_y_.value().set(metrics.protrudeUnderY);
-		frame_ = core::draw_frame(std::move(frame));
+		frame_ = draw_frame(std::move(res));
 	}
 
 	// frame_producer
@@ -293,12 +373,13 @@ public:
 		info.add(L"text", text_.value().get());
 		info.add(L"font", font_.get_name());
 		info.add(L"size", font_.get_size());
+		info.add(L"croppable", croppable_);
 		return info;
 	}
 };
 
-text_producer::text_producer(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone)
-	: impl_(new impl(frame_factory, x, y, str, text_info, parent_width, parent_height, standalone))
+text_producer::text_producer(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone, bool croppable)
+	: impl_(new impl(frame_factory, x, y, str, text_info, parent_width, parent_height, standalone, croppable))
 {}
 
 draw_frame text_producer::receive_impl() { return impl_->receive_impl(); }
@@ -316,16 +397,16 @@ binding<double>& text_producer::tracking() { return impl_->tracking(); }
 const binding<double>& text_producer::current_bearing_y() const { return impl_->current_bearing_y(); }
 const binding<double>& text_producer::current_protrude_under_y() const { return impl_->current_protrude_under_y(); }
 
-spl::shared_ptr<text_producer> text_producer::create(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone)
+spl::shared_ptr<text_producer> text_producer::create(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone, bool croppable)
 {
-	return spl::make_shared<text_producer>(frame_factory, x, y, str, text_info, parent_width, parent_height, standalone);
+	return spl::make_shared<text_producer>(frame_factory, x, y, str, text_info, parent_width, parent_height, standalone, croppable);
 }
 namespace text {
 
 void describe_text_producer(help_sink& sink, const help_repository& repo)
 {
 	sink.short_description(L"A producer for rendering dynamic text.");
-	sink.syntax(L"[TEXT] [text:string] {[x:int] [y:int]} {FONT [font:string]|verdana} {SIZE [size:float]|30.0} {COLOR [color:string]|#ffffffff} {STANDALONE [standalone:0,1]|0}");
+	sink.syntax(L"[TEXT] [text:string] {[x:int] [y:int]} {FONT [font:string]|verdana} {SIZE [size:float]|30.0} {COLOR [color:string]|#ffffffff} {STANDALONE [standalone:0,1]|0} {CROPPABLE [croppable:0,1]|0}");
 	sink.para()
 		->text(L"Renders dynamic text using fonts found under the ")->code(L"fonts")->text(L" folder. ")
 		->text(L"Parameters:");
@@ -336,7 +417,8 @@ void describe_text_producer(help_sink& sink, const help_repository& repo)
 		->item(L"font", L"The name of the font (not the actual filename, but the font name).")
 		->item(L"size", L"The point size.")
 		->item(L"color", L"The color as an ARGB hex value.")
-		->item(L"standalone", L"Whether to normalize coordinates or not.");
+		->item(L"standalone", L"Whether to normalize coordinates or not.")
+		->item(L"croppable", L"Whether to allow cropping. This means cropping is required, otherwise the top and bottom of characters will be lost.");
 	sink.para()->text(L"Examples:");
 	sink.example(L">> PLAY 1-10 [TEXT] \"John Doe\" 0 0 FONT ArialMT SIZE 30 COLOR #1b698d STANDALONE 1");
 	sink.example(L">> CALL 1-10 \"Jane Doe\"", L"for modifying the text while playing.");
@@ -365,6 +447,7 @@ spl::shared_ptr<frame_producer> create_text_producer(const frame_producer_depend
 	text_info.color = core::text::color<double>(col_val);
 
 	bool standalone = get_param(L"STANDALONE", params, false);
+	bool croppable = get_param(L"CROPPABLE", params, false);
 
 	return text_producer::create(
 			dependencies.frame_factory,
@@ -372,7 +455,8 @@ spl::shared_ptr<frame_producer> create_text_producer(const frame_producer_depend
 			params.at(1),
 			text_info,
 			dependencies.format_desc.width, dependencies.format_desc.height,
-			standalone);
+			standalone,
+			croppable);
 }
 
 }}}

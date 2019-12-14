@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,14 +9,14 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=158b19fa3b7bec818b76834d487844acf7434273$
+// $hash=507008786167dc93b7e0c23f37948494d3ada86c$
 //
 
 #include "libcef_dll/ctocpp/download_item_callback_ctocpp.h"
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
-void CefDownloadItemCallbackCToCpp::Cancel() {
+NO_SANITIZE("cfi-icall") void CefDownloadItemCallbackCToCpp::Cancel() {
   cef_download_item_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, cancel))
     return;
@@ -27,7 +27,7 @@ void CefDownloadItemCallbackCToCpp::Cancel() {
   _struct->cancel(_struct);
 }
 
-void CefDownloadItemCallbackCToCpp::Pause() {
+NO_SANITIZE("cfi-icall") void CefDownloadItemCallbackCToCpp::Pause() {
   cef_download_item_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, pause))
     return;
@@ -38,7 +38,7 @@ void CefDownloadItemCallbackCToCpp::Pause() {
   _struct->pause(_struct);
 }
 
-void CefDownloadItemCallbackCToCpp::Resume() {
+NO_SANITIZE("cfi-icall") void CefDownloadItemCallbackCToCpp::Resume() {
   cef_download_item_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, resume))
     return;

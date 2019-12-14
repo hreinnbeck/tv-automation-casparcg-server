@@ -59,6 +59,7 @@ exec_cmd(std::shared_ptr<AMCPCommand> cmd, const std::vector<channel_context>& c
         } catch (expected_user_error&) {
             cmd->SendReply(L"403 " + cmd->name() + L" FAILED\r\n", reply_without_req_id);
         } catch (user_error&) {
+			CASPAR_LOG_CURRENT_EXCEPTION_AT_LEVEL(debug);
             CASPAR_LOG(error) << " Check syntax. Turn on log level debug for stacktrace.";
             cmd->SendReply(L"403 " + cmd->name() + L" FAILED\r\n", reply_without_req_id);
         } catch (std::out_of_range&) {

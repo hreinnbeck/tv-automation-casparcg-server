@@ -14,6 +14,7 @@ struct amcp_command_static_context
     const std::shared_ptr<core::thumbnail_generator>             thumb_gen;
     const spl::shared_ptr<core::media_info_repository>           media_info_repo;
     const spl::shared_ptr<core::system_info_provider_repository> system_info_provider_repo;
+	const core::video_format_repository							 format_repository;
     const spl::shared_ptr<core::cg_producer_registry>            cg_registry;
     const spl::shared_ptr<core::help_repository>                 help_repo;
     const spl::shared_ptr<const core::frame_producer_registry>   producer_registry;
@@ -26,6 +27,7 @@ struct amcp_command_static_context
     amcp_command_static_context(const std::shared_ptr<core::thumbnail_generator>&             thumb_gen,
                                 const spl::shared_ptr<core::media_info_repository>&           media_info_repo,
                                 const spl::shared_ptr<core::system_info_provider_repository>& system_info_provider_repo,
+                                const core::video_format_repository&                          format_repository,
                                 const spl::shared_ptr<core::cg_producer_registry>             cg_registry,
                                 const spl::shared_ptr<core::help_repository>&                 help_repo,
                                 const spl::shared_ptr<const core::frame_producer_registry>    producer_registry,
@@ -37,6 +39,7 @@ struct amcp_command_static_context
         : thumb_gen(std::move(thumb_gen))
         , media_info_repo(std::move(media_info_repo))
         , system_info_provider_repo(std::move(system_info_provider_repo))
+		, format_repository(format_repository)
         , cg_registry(std::move(cg_registry))
         , help_repo(std::move(help_repo))
         , producer_registry(std::move(producer_registry))

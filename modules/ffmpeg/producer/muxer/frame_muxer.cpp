@@ -135,6 +135,7 @@ struct frame_muxer::impl : boost::noncopyable
 	std::queue<core::draw_frame>					frame_buffer_;
 	display_mode									display_mode_				= display_mode::invalid;
 	const boost::rational<int>						in_framerate_;
+	core::video_format_repository					format_repository_;
 	const video_format_desc							format_desc_;
 	const audio_channel_layout						audio_channel_layout_;
 
@@ -156,12 +157,14 @@ struct frame_muxer::impl : boost::noncopyable
 			boost::rational<int> in_framerate,
 			std::vector<audio_input_pad> audio_input_pads,
 			const spl::shared_ptr<core::frame_factory>& frame_factory,
+			const core::video_format_repository& format_repository,
 			const core::video_format_desc& format_desc,
 			const core::audio_channel_layout& channel_layout,
 			const std::wstring& filter_str,
 			bool multithreaded_filter,
 			bool force_deinterlacing)
 		: in_framerate_(in_framerate)
+		, format_repository_(format_repository)
 		, format_desc_(format_desc)
 		, audio_channel_layout_(channel_layout)
 		, frame_factory_(frame_factory)
@@ -463,7 +466,7 @@ private:
 
 	void update_audio_cadence()
 	{
-		audio_cadence_ = find_audio_cadence(out_framerate_);
+		audio_cadence_ = format_repository_.find_audio_cadence(out_framerate_, is_logging_quiet_for_thread()); 
 
 		// Note: Uses 1 step rotated cadence for 1001 modes (1602, 1602, 1601, 1602, 1601)
 		// This cadence fills the audio mixer most optimally.
@@ -475,12 +478,13 @@ frame_muxer::frame_muxer(
 		boost::rational<int> in_framerate,
 		std::vector<audio_input_pad> audio_input_pads,
 		const spl::shared_ptr<core::frame_factory>& frame_factory,
+		const core::video_format_repository& format_repository,
 		const core::video_format_desc& format_desc,
 		const core::audio_channel_layout& channel_layout,
 		const std::wstring& filter,
 		bool multithreaded_filter,
 		bool force_deinterlacing)
-	: impl_(new impl(std::move(in_framerate), std::move(audio_input_pads), frame_factory, format_desc, channel_layout, filter, multithreaded_filter, force_deinterlacing)){}
+	: impl_(new impl(std::move(in_framerate), std::move(audio_input_pads), frame_factory, format_repository, format_desc, channel_layout, filter, multithreaded_filter, force_deinterlacing)){}
 void frame_muxer::push(const std::shared_ptr<AVFrame>& video){impl_->push(video);}
 void frame_muxer::push(const std::vector<std::shared_ptr<core::mutable_audio_buffer>>& audio_samples_per_stream){impl_->push(audio_samples_per_stream);}
 core::draw_frame frame_muxer::poll(){return impl_->poll();}

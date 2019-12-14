@@ -41,6 +41,11 @@
 
 #include <SFML/Window/Context.hpp>
 
+#ifdef WIN32
+#include "../../d3d/d3d_device.h"
+#include <GL/wglew.h>
+#endif
+
 #include <tbb/concurrent_unordered_map.h>
 #include <tbb/concurrent_hash_map.h>
 #include <tbb/concurrent_queue.h>
@@ -63,6 +68,11 @@ struct device::impl : public std::enable_shared_from_this<impl>
 
 	std::unique_ptr<sf::Context> device_;
 	
+#ifdef WIN32
+    std::shared_ptr<d3d::d3d_device> d3d_device_;
+    std::shared_ptr<void>            interop_handle_;
+#endif
+	
 	std::array<tbb::concurrent_unordered_map<std::size_t, tbb::concurrent_bounded_queue<std::shared_ptr<texture>>>, 8>	device_pools_;
 	std::array<tbb::concurrent_unordered_map<std::size_t, tbb::concurrent_bounded_queue<std::shared_ptr<buffer>>>, 2>	host_pools_;
 	
@@ -84,12 +94,29 @@ struct device::impl : public std::enable_shared_from_this<impl>
 						
 			if (glewInit() != GLEW_OK)
 				CASPAR_THROW_EXCEPTION(gl::ogl_exception() << msg_info("Failed to initialize GLEW."));
-		
-			if(!GLEW_VERSION_3_0)
+#ifdef WIN32
+			if (wglewInit() != GLEW_OK)
+				CASPAR_THROW_EXCEPTION(gl::ogl_exception() << msg_info("Failed to initialize WGLEW."));
+#endif
+
+			if(!GLEW_VERSION_4_3)
 				CASPAR_THROW_EXCEPTION(not_supported() << msg_info("Your graphics card does not meet the minimum hardware requirements since it does not support OpenGL 3.0 or higher."));
 	
 			glGenFramebuffers(1, &fbo_);				
 			glBindFramebuffer(GL_FRAMEBUFFER, fbo_);
+			
+#ifdef WIN32
+		d3d_device_ = d3d::d3d_device::get_device();
+        if (d3d_device_) {
+            interop_handle_ = std::shared_ptr<void>(wglDXOpenDeviceNV(d3d_device_->device()), [](void* p) {
+ 				if (p)
+                    wglDXCloseDeviceNV(p);
+            });
+
+            if (!interop_handle_)
+                CASPAR_THROW_EXCEPTION(gl::ogl_exception() << msg_info("Failed to initialize d3d interop."));
+        }
+#endif
 		});
 				
 		CASPAR_LOG(info) << L"Successfully initialized OpenGL " << version();
@@ -217,6 +244,10 @@ struct device::impl : public std::enable_shared_from_this<impl>
 			return L"Not found";;
 		}
 	}
+
+	tbb::concurrent_bounded_queue<std::shared_ptr<texture>>* get_texture_pool(int width, int height, int stride, bool mipmapped) {
+		return &device_pools_[stride - 1 + (mipmapped ? 4 : 0)][((width << 16) & 0xFFFF0000) | (height & 0x0000FFFF)];
+	}
 							
 	spl::shared_ptr<texture> create_texture(int width, int height, int stride, bool mipmapped, bool clear)
 	{
@@ -226,11 +257,13 @@ struct device::impl : public std::enable_shared_from_this<impl>
 		if(!executor_.is_current())
 			CASPAR_THROW_EXCEPTION(invalid_operation() << msg_info("Operation only valid in an OpenGL Context."));
 					
-		auto pool = &device_pools_[stride - 1 + (mipmapped ? 4 : 0)][((width << 16) & 0xFFFF0000) | (height & 0x0000FFFF)];
+		auto pool = get_texture_pool(width, height, stride, mipmapped);
 		
 		std::shared_ptr<texture> tex;
-		if(!pool->try_pop(tex))		
+		if (!pool->try_pop(tex)) {
 			tex = spl::make_shared<texture>(width, height, stride, mipmapped);
+			CASPAR_LOG(debug) << L"[texture] Texture allocation: " << width << L"x" << height << L"x" << stride;
+		}
 	
 		if(clear)
 			tex->clear();
@@ -254,11 +287,23 @@ struct device::impl : public std::enable_shared_from_this<impl>
 
 			auto context = executor_.is_current() ? std::string() : get_context();
 
+			// Prioritise the mix target, so that mixing can flow smoothly
+			auto priority = usage == buffer::usage::read_only ? task_priority::high_priority : task_priority::normal_priority;
+
 			buf = executor_.invoke([&]
 			{
 				CASPAR_SCOPED_CONTEXT_MSG(context);
-				return std::make_shared<buffer>(size, usage);
-			}, task_priority::high_priority);
+				caspar::timer timer;
+
+				auto buf = std::make_shared<buffer>(size, usage);
+
+				if (timer.elapsed() > 0.02)
+					CASPAR_LOG(warning) << L"[buffer] Performance warning. Buffer allocation (" << size << L"b) blocked: " << timer.elapsed();
+				else
+					CASPAR_LOG(debug) << L"[buffer] Buffer allocation (" << size << L"b) took: " << timer.elapsed();
+
+				return buf;
+			}, priority);
 			
 			if(timer.elapsed() > 0.02)
 				CASPAR_LOG(warning) << L"[ogl-device] Performance warning. Buffer allocation blocked: " << timer.elapsed();
@@ -277,6 +322,8 @@ struct device::impl : public std::enable_shared_from_this<impl>
 				{
 					CASPAR_SCOPED_CONTEXT_MSG(context);
 					strong->texture_cache_.erase(buf.get());
+					// Clear any previous data
+					// TODO - does this want to clear the buffer?
 				}, task_priority::high_priority);
 				
 				pool->push(buf);
@@ -333,23 +380,23 @@ struct device::impl : public std::enable_shared_from_this<impl>
 			texture_cache_.insert(std::make_pair(buf.get(), texture));
 			
 			return texture;
-		}, task_priority::high_priority);
+		}); // , task_priority::high_priority);
 	}
 	
-	std::future<std::shared_ptr<texture>> copy_async(const array<std::uint8_t>& source, int width, int height, int stride, bool mipmapped)
-	{
-		std::shared_ptr<buffer> buf = copy_to_buf(source);
-		auto context = executor_.is_current() ? std::string() : get_context();
+	//std::future<std::shared_ptr<texture>> copy_async(const array<std::uint8_t>& source, int width, int height, int stride, bool mipmapped)
+	//{
+	//	std::shared_ptr<buffer> buf = copy_to_buf(source);
+	//	auto context = executor_.is_current() ? std::string() : get_context();
 
-		return executor_.begin_invoke([=]() -> std::shared_ptr<texture>
-		{
-			CASPAR_SCOPED_CONTEXT_MSG(context);
-			auto texture = create_texture(width, height, stride, mipmapped, false);
-			texture->copy_from(*buf);	
-			
-			return texture;
-		}, task_priority::high_priority);
-	}
+	//	return executor_.begin_invoke([=]() -> std::shared_ptr<texture>
+	//	{
+	//		CASPAR_SCOPED_CONTEXT_MSG(context);
+	//		auto texture = create_texture(width, height, stride, mipmapped, false);
+	//		texture->copy_from(*buf);	
+	//		
+	//		return texture;
+	//	}); //, task_priority::high_priority);
+	//}
 
 	std::future<array<const std::uint8_t>> copy_async(const spl::shared_ptr<texture>& source)
 	{
@@ -359,19 +406,69 @@ struct device::impl : public std::enable_shared_from_this<impl>
 		auto buffer = create_buffer(source->size(), buffer::usage::read_only); 
 		source->copy_to(*buffer);	
 
+		GLsync fence = GL2(glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0));
+		GL(glFlush());
+
 		auto self = shared_from_this();
 		auto context = get_context();
-		auto cmd = [self, buffer, context]() mutable -> array<const std::uint8_t>
+		auto cmd = [self, buffer, context, fence]() mutable -> array<const std::uint8_t>
 		{
-			self->executor_.invoke([&buffer, &context] // Defer blocking "map" call until data is needed.
+			self->executor_.invoke([&buffer, &context, &fence] // Defer blocking call until data is needed.
 			{
-				CASPAR_LOG_CALL(trace) << "Readback <- " << context;
-				buffer->map();
+				caspar::timer timer;
+
+				// TODO - smarter timeout?
+				if (GL2(glClientWaitSync(fence, 0, 1000000000)) == GL_TIMEOUT_EXPIRED) {
+					CASPAR_LOG(warning) << L"[copy_async] Fence wait timed out";
+				}
+
+				GL(glDeleteSync(fence));
+
+				if (timer.elapsed() > 0.02)
+					CASPAR_LOG(warning) << L"[buffer] Performance warning. Buffer mapping blocked: " << timer.elapsed();
 			});
 			return array<const std::uint8_t>(buffer->data(), buffer->size(), true, buffer);
 		};
 		return std::async(std::launch::deferred, std::move(cmd));
 	}
+	
+#ifdef WIN32
+    std::future<std::shared_ptr<texture>> copy_async(uint32_t source, int width, int height, int stride)
+    {
+		if (!executor_.is_current())
+			CASPAR_THROW_EXCEPTION(invalid_operation() << msg_info("Operation only valid in an OpenGL Context."));
+
+        auto tex = create_texture(width, height, stride, false, false); // TODO - mipmap?
+
+        tex->copy_from(source);
+
+        auto fence = glFenceSync(GL_SYNC_GPU_COMMANDS_COMPLETE, 0);
+
+        GL(glFlush());
+
+		auto self = shared_from_this();
+		auto context = get_context();
+		auto cmd = [self, tex, context, fence]() mutable->std::shared_ptr<texture>
+		{
+			self->executor_.invoke([&tex, &context, &fence] // Defer blocking call until data is needed.
+				{
+					caspar::timer timer;
+
+					// TODO - smarter timeout?
+					if (GL2(glClientWaitSync(fence, 0, 1000000000)) == GL_TIMEOUT_EXPIRED) {
+						CASPAR_LOG(warning) << L"[copy_async] Fence wait timed out";
+					}
+
+					GL(glDeleteSync(fence));
+
+					if (timer.elapsed() > 0.02)
+						CASPAR_LOG(warning) << L"[buffer] Performance warning. Texture copy blocked: " << timer.elapsed();
+				});
+			return tex;
+		};
+		return std::async(std::launch::deferred, std::move(cmd));
+    }
+#endif
 
 	std::future<void> gc()
 	{
@@ -398,22 +495,43 @@ struct device::impl : public std::enable_shared_from_this<impl>
 			}
 		}, task_priority::high_priority);
 	}
+
+	void allocate_buffers(int count, int width, int height, int depth, bool mipmapped, bool for_channel) {
+		buffer::usage usage = for_channel ? buffer::usage::read_only : buffer::usage::write_only;
+		executor_.invoke([&]() {
+			int size = width * height * depth;
+			auto buffer_pool = &host_pools_[static_cast<int>(usage)][size];
+			auto texture_pool = get_texture_pool(width, height, depth, mipmapped);
+
+			for (int i = 0; i < count; i++) {
+				buffer_pool->push(std::make_shared<buffer>(size, usage));
+				texture_pool->push(std::make_shared<texture>(width, height, depth, mipmapped));
+			}
+		});
+	}
 };
 
 device::device() 
 	: executor_(L"OpenGL Rendering Context")
-	, impl_(new impl(executor_)){}
+	, impl_(new impl(executor_)){
+}
 device::~device(){}
 spl::shared_ptr<texture>					device::create_texture(int width, int height, int stride, bool mipmapped){ return impl_->create_texture(width, height, stride, mipmapped, true); }
 array<std::uint8_t>							device::create_array(int size){return impl_->create_array(size);}
+void										device::allocate_buffers(int count, int width, int height, int depth, bool mipmapped, bool for_channel) { impl_->allocate_buffers(count, width, height, depth, mipmapped, for_channel); }
 std::future<std::shared_ptr<texture>>		device::copy_async(const array<const std::uint8_t>& source, int width, int height, int stride, bool mipmapped){return impl_->copy_async(source, width, height, stride, mipmapped);}
-std::future<std::shared_ptr<texture>>		device::copy_async(const array<std::uint8_t>& source, int width, int height, int stride, bool mipmapped){ return impl_->copy_async(source, width, height, stride, mipmapped); }
+//std::future<std::shared_ptr<texture>>		device::copy_async(const array<std::uint8_t>& source, int width, int height, int stride, bool mipmapped){ return impl_->copy_async(source, width, height, stride, mipmapped); }
 std::future<array<const std::uint8_t>>		device::copy_async(const spl::shared_ptr<texture>& source){return impl_->copy_async(source);}
 std::future<void>							device::gc() { return impl_->gc(); }
 boost::property_tree::wptree				device::info() const { return impl_->info(); }
 std::wstring								device::version() const{return impl_->version();}
 
+#ifdef WIN32
+std::shared_ptr<void>                 device::d3d_interop() const { return impl_->interop_handle_; }
+std::future<std::shared_ptr<texture>> device::copy_async(uint32_t source, int width, int height, int stride)
+{
+    return impl_->copy_async(source, width, height, stride);
+}
+#endif
 
 }}}
-
-

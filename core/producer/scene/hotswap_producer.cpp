@@ -21,6 +21,8 @@
 
 #include "../../StdAfx.h"
 
+#include <common/future.h>
+
 #include "hotswap_producer.h"
 
 #include "../frame_producer.h"
@@ -126,6 +128,16 @@ const std::vector<std::wstring>& hotswap_producer::get_variables() const
 binding<std::shared_ptr<frame_producer>>& hotswap_producer::producer()
 {
 	return impl_->producer;
+}
+
+std::future<std::wstring> hotswap_producer::call(const std::vector<std::wstring>& params)
+{
+	auto producer = impl_->producer.get();
+
+	if (producer)
+		return producer->call(params);
+	else
+		return frame_producer_base::call(params);
 }
 
 }}

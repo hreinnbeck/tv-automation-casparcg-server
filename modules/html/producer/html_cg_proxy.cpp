@@ -80,7 +80,10 @@ void html_cg_proxy::next(int layer)
 
 void html_cg_proxy::update(int layer, const std::wstring& data)
 {
-	impl_->producer->call({ (boost::wformat(L"update(\"%1%\")") % boost::algorithm::replace_all_copy(boost::algorithm::trim_copy_if(data, boost::is_any_of(" \"")), "\"", "\\\"")).str() });
+	auto str = boost::algorithm::trim_copy_if(data, boost::is_any_of("\r\n \""));
+	str = boost::algorithm::replace_all_copy(str, "\\", "\\\\");
+	str = boost::algorithm::replace_all_copy(str, "\"", "\\\"");
+	impl_->producer->call({ (boost::wformat(L"update(\"%1%\")") % str).str() });
 }
 
 std::wstring html_cg_proxy::invoke(int layer, const std::wstring& label)

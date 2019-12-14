@@ -129,6 +129,7 @@ namespace boost { namespace property_tree {
                 return new_tree();
             }
             assert(false);
+			throw(std::logic_error("reached passed assert!"));
         }
         string& new_value() {
             if (stack.empty()) return new_tree().data();

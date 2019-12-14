@@ -41,17 +41,20 @@ namespace caspar { namespace protocol { namespace CLK {
 class command_context
 {
 	bool													clock_loaded_ = false;
+	core::video_format_repository							format_repository_;
 	std::vector<spl::shared_ptr<core::video_channel>>		channels_;
 	spl::shared_ptr<core::video_channel>					channel_;
 	spl::shared_ptr<core::cg_producer_registry>				cg_registry_;
 	spl::shared_ptr<const core::frame_producer_registry>	producer_registry_;
 public:
 	command_context(
+			const core::video_format_repository format_repository,
 			const std::vector<spl::shared_ptr<core::video_channel>>& channels,
 			const spl::shared_ptr<core::video_channel>& channel,
 			const spl::shared_ptr<core::cg_producer_registry>& cg_registry,
 			const spl::shared_ptr<const core::frame_producer_registry>& producer_registry)
-		: channels_(channels)
+		: format_repository_(format_repository)
+		, channels_(channels)
 		, channel_(channel)
 		, cg_registry_(cg_registry)
 		, producer_registry_(producer_registry)
@@ -62,7 +65,7 @@ public:
 	{
 		if (!clock_loaded_)
 		{
-			core::frame_producer_dependencies dependencies(channel_->frame_factory(), channels_, channel_->video_format_desc(), producer_registry_, cg_registry_);
+			core::frame_producer_dependencies dependencies(channel_->frame_factory(), channels_, format_repository_, channel_->video_format_desc(), producer_registry_, cg_registry_);
 			cg_registry_->get_or_create_proxy(channel_, dependencies, core::cg_proxy::DEFAULT_LAYER, L"hawrysklocka/clock")->add(
 					0, L"hawrysklocka/clock", true, L"", data);
 			clock_loaded_ = true;
@@ -161,12 +164,13 @@ clk_command_handler create_send_xml_handler(
 
 void add_command_handlers(
 	clk_command_processor& processor,
+	const core::video_format_repository format_repository,
 	const std::vector<spl::shared_ptr<core::video_channel>>& channels,
 	const spl::shared_ptr<core::video_channel>& channel,
 	const spl::shared_ptr<core::cg_producer_registry>& cg_registry,
 	const spl::shared_ptr<const core::frame_producer_registry>& producer_registry)
 {
-	auto context = spl::make_shared<command_context>(channels, channel, cg_registry, producer_registry);
+	auto context = spl::make_shared<command_context>(format_repository, channels, channel, cg_registry, producer_registry);
 
 	processor
 		.add_handler(L"DUR",

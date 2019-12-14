@@ -117,6 +117,10 @@ public:
 		graph_->set_value("mix-time", mix_time * format_desc.fps * 0.5);
 		current_mix_time_ = static_cast<int64_t>(mix_time * 1000.0);
 
+		if (mix_time > (1.0 / format_desc.fps)) {
+			CASPAR_LOG(warning) << L"[channel] Performance warning. Mix blocked: " << mix_time;
+		}
+
 		return frame;
 	}
 

@@ -29,6 +29,7 @@
 
 #include <boost/property_tree/ptree.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <sstream>
 #include <future>
@@ -88,27 +89,53 @@ void scene_cg_proxy::update(int layer, const std::wstring& data)
 	if (data.empty())
 		return;
 
-	std::wstringstream stream(data);
-	boost::property_tree::wptree root;
-	boost::property_tree::read_xml(
+	if (data.at(0) == L'<') {
+
+		std::wstringstream stream(data);
+		boost::property_tree::wptree root;
+		boost::property_tree::read_xml(
 			stream,
 			root,
 			boost::property_tree::xml_parser::trim_whitespace | boost::property_tree::xml_parser::no_comments);
 
-	std::vector<std::wstring> parameters;
+		std::vector<std::wstring> parameters;
 
-	for (auto value : root | witerate_children(L"templateData") | welement_context_iteration)
-	{
-		ptree_verify_element_name(value, L"componentData");
+		for (const auto value : root | witerate_children(L"templateData") | welement_context_iteration)
+		{
+			ptree_verify_element_name(value, L"componentData");
 
-		auto id		= ptree_get<std::wstring>(value.second, L"<xmlattr>.id");
-		auto val	= ptree_get<std::wstring>(value.second, L"data.<xmlattr>.value");
+			auto id = ptree_get<std::wstring>(value.second, L"<xmlattr>.id");
+			auto val = ptree_get<std::wstring>(value.second, L"data.<xmlattr>.value");
 
-		parameters.push_back(std::move(id));
-		parameters.push_back(std::move(val));
+			parameters.push_back(std::move(id));
+			parameters.push_back(std::move(val));
+		}
+
+		impl_->producer_->call(parameters);
 	}
+	else if (data.at(0) == L'{')
+	{
+		std::wstringstream stream(data);
+		boost::property_tree::wptree root;
+		boost::property_tree::read_json(stream,	root);
 
-	impl_->producer_->call(parameters);
+		std::vector<std::wstring> parameters;
+
+		for (const auto value : root | welement_context_iteration)
+		{
+			std::wstring id = value.first;
+			std::wstring val = value.second.data();
+
+			parameters.push_back(std::move(id));
+			parameters.push_back(std::move(val));
+		}
+
+		impl_->producer_->call(parameters);
+	}
+	else
+	{
+		CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Scene template data must be in XML or JSON format"));
+	}
 }
 
 std::wstring scene_cg_proxy::invoke(int layer, const std::wstring& label)

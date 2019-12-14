@@ -48,6 +48,7 @@ public:
 			boost::rational<int> in_framerate,
 			std::vector<audio_input_pad> audio_input_pads,
 			const spl::shared_ptr<core::frame_factory>& frame_factory,
+			const core::video_format_repository& format_repository,
 			const core::video_format_desc& format_desc,
 			const core::audio_channel_layout& channel_layout,
 			const std::wstring& filter,

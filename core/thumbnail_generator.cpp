@@ -84,6 +84,7 @@ private:
 	spl::shared_ptr<image_mixer>					image_mixer_;
 	spl::shared_ptr<diagnostics::graph>				graph_;
 	video_format_desc								format_desc_;
+	video_format_repository							format_repository_;
 	spl::unique_ptr<thumbnail_output>				output_;
 	mixer											mixer_;
 	thumbnail_creator								thumbnail_creator_;
@@ -99,6 +100,7 @@ public:
 			const boost::filesystem::path& thumbnails_path,
 			int width,
 			int height,
+			const video_format_repository& format_repository,
 			const video_format_desc& render_video_mode,
 			std::unique_ptr<image_mixer> image_mixer,
 			int generate_delay_millis,
@@ -112,6 +114,7 @@ public:
 		, width_(width)
 		, height_(height)
 		, image_mixer_(std::move(image_mixer))
+		, format_repository_(format_repository)
 		, format_desc_(render_video_mode)
 		, output_(spl::make_unique<thumbnail_output>(generate_delay_millis))
 		, mixer_(0, graph_, image_mixer_)
@@ -269,7 +272,7 @@ public:
 
 			try
 			{
-				raw_frame = producer_registry_->create_thumbnail(frame_producer_dependencies(image_mixer_, {}, format_desc_, producer_registry_, cg_registry_), media_file.wstring());
+				raw_frame = producer_registry_->create_thumbnail(frame_producer_dependencies(image_mixer_, {}, format_repository_, format_desc_, producer_registry_, cg_registry_), media_file.wstring());
 				media_info_repo_->remove(file.wstring());
 				media_info_repo_->get(file.wstring());
 			}
@@ -330,6 +333,7 @@ thumbnail_generator::thumbnail_generator(
 		const boost::filesystem::path& thumbnails_path,
 		int width,
 		int height,
+		const video_format_repository& format_repository,
 		const video_format_desc& render_video_mode,
 		std::unique_ptr<image_mixer> image_mixer,
 		int generate_delay_millis,
@@ -343,6 +347,7 @@ thumbnail_generator::thumbnail_generator(
 				media_path,
 				thumbnails_path,
 				width, height,
+				format_repository,
 				render_video_mode,
 				std::move(image_mixer),
 				generate_delay_millis,

@@ -33,7 +33,8 @@ public:
 	enum class geometry_type
 	{
 		quad,
-		quad_list
+		quad_list,
+		quad_list_croppable
 	};
 
 	struct coord

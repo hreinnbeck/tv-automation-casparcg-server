@@ -17,6 +17,13 @@ set(SOURCES
 		accelerator.cpp
 		StdAfx.cpp
 )
+if (MSVC)
+	set(WIN32_SPECIFIC_SOURCES
+        d3d/d3d_device.cpp
+		d3d/d3d_device_context.cpp
+		d3d/d3d_texture2d.cpp
+	)
+endif ()
 set(HEADERS
 		ogl/image/blending_glsl.h
 		ogl/image/image_kernel.h
@@ -34,8 +41,15 @@ set(HEADERS
 		accelerator.h
 		StdAfx.h
 )
+if (MSVC)
+	set(WIN32_SPECIFIC_HEADERS
+        d3d/d3d_device.h
+		d3d/d3d_device_context.h
+		d3d/d3d_texture2d.h
+	)
+endif ()
 
-add_library(accelerator ${SOURCES} ${HEADERS} ${OS_SPECIFIC_SOURCES})
+add_library(accelerator ${SOURCES} ${HEADERS} ${WIN32_SPECIFIC_SOURCES} ${WIN32_SPECIFIC_HEADERS})
 add_precompiled_header(accelerator StdAfx.h FORCEINCLUDE)
 
 include_directories(..)
@@ -50,5 +64,6 @@ source_group(sources ./*)
 source_group(sources\\cpu\\image cpu/image/*)
 source_group(sources\\ogl\\image ogl/image/*)
 source_group(sources\\ogl\\util ogl/util/*)
+source_group(sources\\d3d d3d/*)
 
 target_link_libraries(accelerator common core ffmpeg)

@@ -15,7 +15,7 @@ namespace caspar { namespace core { namespace text {
 struct unicode_range
 {
 	unicode_range() : first(0), last(0) {}
-	unicode_range(int f, int l) : first(f), last(l) {}
+	unicode_range(const int f, const int l) : first(f), last(l) {}
 
 	int first;
 	int last;
@@ -23,96 +23,109 @@ struct unicode_range
 
 unicode_range get_range(unicode_block block);
 
-
 struct texture_font::impl
 {
 private:
 	struct glyph_info
 	{
-		glyph_info(int w, int h, double l, double t, double r, double b) : width(w), height(h), left(l), top(t), right(r), bottom(b)
+		glyph_info(int i, int w, int h, double l, double t, double r, double b) : index(i), width(w), height(h), left(l), top(t), right(r), bottom(b)
 		{}
 
+		int index;
 		double left, top, right, bottom;
 		int width, height;
 	};
 
 	spl::shared_ptr<FT_FaceRec_>	face_;
-	texture_atlas					atlas_;
+	texture_atlas_set				atlas_set_;
 	double							size_;
 	double							tracking_;
-	bool							normalize_;
 	std::map<int, glyph_info>		glyphs_;
+	std::vector<unicode_block>		loaded_blocks_;
 	std::wstring					name_;
+	color<double>					col_;
 
 public:
-	impl(texture_atlas& atlas, const text_info& info, bool normalize_coordinates)
+	impl(texture_atlas_set& atlas_set, const text_info& info, color<double>& col)
 		: face_(get_new_face(u8(info.font_file), u8(info.font)))
-		, atlas_(atlas)
+		, atlas_set_(atlas_set)
 		, size_(info.size)
 		, tracking_(info.size*info.tracking/1000.0)
-		, normalize_(normalize_coordinates)
 		, name_(info.font)
+		, col_(col)
 	{
 		if (FT_Set_Char_Size(face_.get(), static_cast<FT_F26Dot6>(size_*64), 0, 72, 72))
 			CASPAR_THROW_EXCEPTION(expected_freetype_exception() << msg_info("Failed to set font size"));
 	}
 
-	void set_tracking(double tracking)
+	void set_tracking(const double tracking)
 	{
 		tracking_ = size_ * tracking / 1000.0;
 	}
 
-	int count_glyphs_in_range(unicode_block block)
+	void load_block_for_char(const int ch)
 	{
-		unicode_range range = get_range(block);
-
-		//TODO: extract info from freetype
-
-		//very pesimistic, assumes a glyph for each charcode
-		return range.last - range.first;
-	}
-
-	void load_glyphs(unicode_block block, const color<double>& col)
-	{
-		int flags = FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL;
-		unicode_range range = get_range(block);
-
-		for(int i = range.first; i <= range.last; ++i)
+		for (int bl = static_cast<int>(unicode_block::Basic_Latin); bl != static_cast<int>(unicode_block::Supplementary_Private_Use_Area_B); ++bl)
 		{
-			FT_UInt glyph_index = FT_Get_Char_Index(face_.get(), i);
-			if(!glyph_index)	//ignore codes that doesn't have a glyph for now. Might want to map these to a special glyph later.
-				continue;
-
-			FT_Error err = FT_Load_Glyph(face_.get(), glyph_index, flags);
-			if(err) continue;	//igonore glyphs that fail to load
-
-			const FT_Bitmap& bitmap = face_->glyph->bitmap;	//shorthand notation
-
-			auto region = atlas_.get_region(bitmap.width+1, bitmap.rows+1);
-			if(region.x < 0)
-			{
-				//the glyph doesn't fit in the texture-atlas. ignore it for now.
-				//we might want to restart with a bigger atlas in the future
-				continue;
+			const unicode_block block = static_cast<unicode_block>(bl);
+			const unicode_range range = get_range(block);
+			if (ch >= range.first && ch <= range.last) {
+				load_glyphs(block, range);
+				return;
 			}
-
-			atlas_.set_region(region.x, region.y, bitmap.width, bitmap.rows, bitmap.buffer, bitmap.pitch, col);
-			glyphs_.insert(std::pair<int, glyph_info>(i, glyph_info(bitmap.width, bitmap.rows,
-										region.x / static_cast<double>(atlas_.width()),
-										region.y / static_cast<double>(atlas_.height()),
-										(region.x + bitmap.width) / static_cast<double>(atlas_.width()),
-										(region.y + bitmap.rows) / static_cast<double>(atlas_.height()))));
 		}
 	}
 
-	std::vector<frame_geometry::coord> create_vertex_stream(const std::wstring& str, int x, int y, int parent_width, int parent_height, string_metrics* metrics, double shear)
+	bool load_blocks_for_string(const std::wstring str)
 	{
-		//TODO: detect glyphs that aren't in the atlas and load them (and maybe that entire unicode_block on the fly
+		const size_t loaded_count = loaded_blocks_.size();
 
-		std::vector<frame_geometry::coord> result;
-		result.resize(4 * str.length());
+		for (auto& ch: str)
+			load_block_for_char(ch);
 
-		bool use_kerning = (face_->face_flags & FT_FACE_FLAG_KERNING) == FT_FACE_FLAG_KERNING;
+		return loaded_blocks_.size() > loaded_count;
+	}
+	
+	void load_glyphs(const unicode_block block, const unicode_range range)
+	{
+		if (std::find(loaded_blocks_.begin(), loaded_blocks_.end(), block) != loaded_blocks_.end())
+			return;
+		loaded_blocks_.push_back(block);
+
+		for (int i = range.first; i <= range.last; ++i)
+		{
+			const FT_UInt glyph_index = FT_Get_Char_Index(face_.get(), i);
+			if (!glyph_index)	//ignore codes that doesn't have a glyph for now. Might want to map these to a special glyph later.
+				continue;
+
+			const int flags = FT_LOAD_RENDER | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL;
+			const FT_Error err = FT_Load_Glyph(face_.get(), glyph_index, flags);
+			if (err) continue;	//igonore glyphs that fail to load
+
+			const FT_Bitmap& bitmap = face_->glyph->bitmap;	//shorthand notation
+
+			const atlas_rect region = atlas_set_.get_region(bitmap.width + CHAR_PADDING * 2, bitmap.rows + CHAR_PADDING * 2);
+			if (region.x < 0 || region.index < 0)
+			{
+				// glyph was too big for atlas. ignore it for now.
+				continue;
+			}
+
+			atlas_set_.set_region(region, bitmap.width, bitmap.rows, bitmap.buffer, bitmap.pitch, col_);
+			glyphs_.insert(std::pair<int, glyph_info>(i, glyph_info(region.index, bitmap.width, bitmap.rows,
+				region.x / static_cast<double>(atlas_set_.width()),
+				region.y / static_cast<double>(atlas_set_.height()),
+				(region.x + region.width) / static_cast<double>(atlas_set_.width()),
+				(region.y + region.height) / static_cast<double>(atlas_set_.height()))));
+		}
+	}
+
+	std::vector<text_char> create_vertex_stream(const std::wstring& str, const int x, const int y, const int parent_width, const int parent_height, bool normalize, string_metrics* metrics, double shear)
+	{
+		std::vector<text_char> result;
+		result.resize(str.length());
+
+		const bool use_kerning = (face_->face_flags & FT_FACE_FLAG_KERNING) == FT_FACE_FLAG_KERNING;
 		int index = 0;
 		FT_UInt previous = 0;
 		double pos_x = static_cast<double>(x);
@@ -124,90 +137,93 @@ public:
 
 		for (auto it = str.begin(), end = str.end(); it != end; ++it, ++index)
 		{
-			auto glyph_it = glyphs_.find(*it);
-			if (glyph_it != glyphs_.end())
+			const auto glyph_it = glyphs_.find(*it);
+			if (glyph_it == glyphs_.end())
+				continue;
+
+			const glyph_info& coords = glyph_it->second;
+				
+			const FT_UInt glyph_index = FT_Get_Char_Index(face_.get(), (*it));
+
+			if(use_kerning && previous && glyph_index)
 			{
-				const glyph_info& coords = glyph_it->second;
+				FT_Vector delta;
+				FT_Get_Kerning(face_.get(), previous, glyph_index, FT_KERNING_DEFAULT, &delta);
 
-				FT_UInt glyph_index = FT_Get_Char_Index(face_.get(), (*it));
-
-				if(use_kerning && previous && glyph_index)
-				{
-					FT_Vector delta;
-					FT_Get_Kerning(face_.get(), previous, glyph_index, FT_KERNING_DEFAULT, &delta);
-
-					pos_x += delta.x / 64.0;
-				}
-
-				FT_Load_Glyph(face_.get(), glyph_index, FT_LOAD_NO_BITMAP | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL);
-
-				double left = (pos_x + face_->glyph->metrics.horiBearingX / 64.0) / parent_width;
-				double right = ((pos_x + face_->glyph->metrics.horiBearingX / 64.0) + coords.width) / parent_width;
-
-				double top = (pos_y - face_->glyph->metrics.horiBearingY/64.0) / parent_height;
-				double bottom = ((pos_y - face_->glyph->metrics.horiBearingY / 64.0) + coords.height) / parent_height;
-
-				auto ul_index = index * 4;
-				auto ur_index = ul_index + 1;
-				auto lr_index = ul_index + 2;
-				auto ll_index = ul_index + 3;
-
-				//vertex 1 upper left
-				result[ul_index].vertex_x = left;	//vertex.x
-				result[ul_index].vertex_y	= top;		  		//vertex.y
-				result[ul_index].texture_x	= coords.left;		//texcoord.r
-				result[ul_index].texture_y	= coords.top; 		//texcoord.s
-
-				//vertex 2 upper right
-				result[ur_index].vertex_x = right;	//vertex.x
-				result[ur_index].vertex_y	= top;		   		//vertex.y
-				result[ur_index].texture_x	= coords.right;		//texcoord.r
-				result[ur_index].texture_y	= coords.top;  		//texcoord.s
-
-				//vertex 3 lower right
-				result[lr_index].vertex_x	= right;	//vertex.x
-				result[lr_index].vertex_y	= bottom;	   			//vertex.y
-				result[lr_index].texture_x	= coords.right;			//texcoord.r
-				result[lr_index].texture_y	= coords.bottom;		//texcoord.s
-
-				//vertex 4 lower left
-				result[ll_index].vertex_x	= left;	//vertex.x
-				result[ll_index].vertex_y	= bottom;				//vertex.y
-				result[ll_index].texture_x	= coords.left;			//texcoord.r
-				result[ll_index].texture_y	= coords.bottom;		//texcoord.s
-
-				int bearingY = face_->glyph->metrics.horiBearingY >> 6;
-
-				if(bearingY > maxBearingY)
-					maxBearingY = bearingY;
-
-				int protrudeUnderY = coords.height - bearingY;
-
-				if (protrudeUnderY > maxProtrudeUnderY)
-					maxProtrudeUnderY = protrudeUnderY;
-
-				if (maxBearingY + maxProtrudeUnderY > maxHeight)
-					maxHeight = maxBearingY + maxProtrudeUnderY;
-
-				pos_x += face_->glyph->advance.x / 64.0;
-				pos_x += tracking_;
-				previous = glyph_index;
+				pos_x += delta.x / 64.0;
 			}
-			else
-			{
-				//TODO: maybe we should try to load the glyph on the fly if it is missing.
-			}
+
+			FT_Load_Glyph(face_.get(), glyph_index, FT_LOAD_NO_BITMAP | FT_LOAD_FORCE_AUTOHINT | FT_LOAD_TARGET_NORMAL);
+
+			const double left = (pos_x - CHAR_PADDING + face_->glyph->metrics.horiBearingX / 64.0) / parent_width;
+			const double right = ((pos_x + CHAR_PADDING + face_->glyph->metrics.horiBearingX / 64.0) + coords.width) / parent_width;
+
+			const double top = (pos_y - CHAR_PADDING - face_->glyph->metrics.horiBearingY/64.0) / parent_height;
+			const double bottom = ((pos_y + CHAR_PADDING - face_->glyph->metrics.horiBearingY / 64.0) + coords.height) / parent_height;
+				
+			text_char new_char;
+			new_char.atlas_index = coords.index;
+				
+			//vertex 1 upper left
+			new_char.ul_coord.vertex_x = left;	//vertex.x
+			new_char.ul_coord.vertex_y	= top;		  		//vertex.y
+			new_char.ul_coord.texture_x	= coords.left;		//texcoord.r
+			new_char.ul_coord.texture_y	= coords.top; 		//texcoord.s
+
+			//vertex 2 upper right
+			new_char.ur_coord.vertex_x = right;	//vertex.x
+			new_char.ur_coord.vertex_y	= top;		   		//vertex.y
+			new_char.ur_coord.texture_x	= coords.right;		//texcoord.r
+			new_char.ur_coord.texture_y	= coords.top;  		//texcoord.s
+
+			//vertex 3 lower right
+			new_char.lr_coord.vertex_x	= right;	//vertex.x
+			new_char.lr_coord.vertex_y	= bottom;	   			//vertex.y
+			new_char.lr_coord.texture_x	= coords.right;			//texcoord.r
+			new_char.lr_coord.texture_y	= coords.bottom;		//texcoord.s
+
+			//vertex 4 lower left
+			new_char.ll_coord.vertex_x	= left;	//vertex.x
+			new_char.ll_coord.vertex_y	= bottom;				//vertex.y
+			new_char.ll_coord.texture_x	= coords.left;			//texcoord.r
+			new_char.ll_coord.texture_y	= coords.bottom;		//texcoord.s
+
+			result[index] = new_char;
+
+			const int bearingY = face_->glyph->metrics.horiBearingY >> 6;
+
+			if(bearingY > maxBearingY)
+				maxBearingY = bearingY;
+
+			const int protrudeUnderY = coords.height - bearingY;
+
+			if (protrudeUnderY > maxProtrudeUnderY)
+				maxProtrudeUnderY = protrudeUnderY;
+
+			if (maxBearingY + maxProtrudeUnderY > maxHeight)
+				maxHeight = maxBearingY + maxProtrudeUnderY;
+
+			pos_x += face_->glyph->advance.x / 64.0;
+			pos_x += tracking_;
+			previous = glyph_index;
 		}
 
-		if(normalize_)
+		if(normalize)
 		{
-			auto ratio_x = parent_width / (pos_x - tracking_ - x);
-			auto ratio_y = parent_height / static_cast<double>(maxHeight);
+			const auto ratio_x = parent_width / (pos_x - tracking_ - x);
+			const auto ratio_y = parent_height / static_cast<double>(maxHeight);
 
 			for (auto& coord : result)
 			{
-				coord.vertex_x *= ratio_x;
-				coord.vertex_y *= ratio_y;
+				// TODO - check this applies, now that coord is a struct
+				coord.ul_coord.vertex_x *= ratio_x;
+				coord.ul_coord.vertex_y *= ratio_y;
+				coord.ur_coord.vertex_x *= ratio_x;
+				coord.ur_coord.vertex_y *= ratio_y;
+				coord.lr_coord.vertex_x *= ratio_x;
+				coord.lr_coord.vertex_y *= ratio_y;
+				coord.ll_coord.vertex_x *= ratio_x;
+				coord.ll_coord.vertex_y *= ratio_y;
 			}
 		}
 
@@ -233,14 +249,14 @@ public:
 	}
 };
 
-texture_font::texture_font(texture_atlas& atlas, const text_info& info, bool normalize_coordinates) : impl_(new impl(atlas, info, normalize_coordinates)) {}
-void texture_font::load_glyphs(unicode_block range, const color<double>& col) { impl_->load_glyphs(range, col); }
-void texture_font::set_tracking(double tracking) { impl_->set_tracking(tracking); }
-std::vector<frame_geometry::coord> texture_font::create_vertex_stream(const std::wstring& str, int x, int y, int parent_width, int parent_height, string_metrics* metrics, double shear) { return impl_->create_vertex_stream(str, x, y, parent_width, parent_height, metrics, shear); }
+texture_font::texture_font(texture_atlas_set& atlas, const text_info& info, color<double>& col) : impl_(new impl(atlas, info, col)) {}
+bool texture_font::load_blocks_for_string(const std::wstring str) { return impl_->load_blocks_for_string(str); }
+void texture_font::set_tracking(const double tracking) { impl_->set_tracking(tracking); }
+std::vector<text_char> texture_font::create_vertex_stream(const std::wstring& str, const int x, const int y, const int parent_width, const int parent_height, bool normalize, string_metrics* metrics, const double shear) { return impl_->create_vertex_stream(str, x, y, parent_width, parent_height, normalize, metrics, shear); }
 std::wstring texture_font::get_name() const { return impl_->get_name(); }
 double texture_font::get_size() const { return impl_->get_size(); }
 
-unicode_range get_range(unicode_block block)
+unicode_range get_range(const unicode_block block)
 {
 	switch(block)
 	{

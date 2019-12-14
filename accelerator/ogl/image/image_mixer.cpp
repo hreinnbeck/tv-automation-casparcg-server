@@ -38,8 +38,13 @@
 #include <core/frame/pixel_format.h>
 #include <core/video_format.h>
 #include <core/frame/geometry.h>
+#include <core/frame/audio_channel_layout.h>
 
 #include <GL/glew.h>
+
+#ifdef WIN32
+#include "../../d3d/d3d_texture2d.h"
+#endif
 
 #include <boost/range/algorithm_ext/erase.hpp>
 #include <boost/thread/future.hpp>
@@ -71,22 +76,16 @@ struct layer
 	}
 };
 
-std::size_t get_max_video_format_size()
-{
-	auto format_size = [](core::video_format format) { return core::video_format_desc(format).size; };
-	return cpplinq::from(enum_constants<core::video_format>())
-		.select(std::ref(format_size))
-		.max();
-}
-
 class image_renderer
 {
 	spl::shared_ptr<device>	ogl_;
 	image_kernel			kernel_;
+	const size_t			max_frame_size_;
 public:
-	image_renderer(const spl::shared_ptr<device>& ogl, bool blend_modes_wanted, bool straight_alpha_wanted)
+	image_renderer(const spl::shared_ptr<device>& ogl, const bool blend_modes_wanted, const bool straight_alpha_wanted, const size_t max_frame_size)
 		: ogl_(ogl)
 		, kernel_(ogl_, blend_modes_wanted, straight_alpha_wanted)
+		, max_frame_size_(max_frame_size)
 	{
 	}
 
@@ -94,7 +93,7 @@ public:
 	{
 		if(layers.empty())
 		{ // Bypass GPU with empty frame.
-			static const cache_aligned_vector<uint8_t> buffer(get_max_video_format_size(), 0);
+			static const cache_aligned_vector<uint8_t> buffer(max_frame_size_, 0);
 			return make_ready_future(array<const std::uint8_t>(buffer.data(), format_desc.size, true));
 		}
 
@@ -115,7 +114,7 @@ public:
 			target_texture->attach();
 
 			return ogl_->copy_async(target_texture);
-		}));
+		}, task_priority::high_priority));
 	}
 
 private:
@@ -276,9 +275,9 @@ struct image_mixer::impl : public core::frame_factory
 	std::vector<layer>					layers_; // layer/stream/items
 	std::vector<layer*>					layer_stack_;
 public:
-	impl(const spl::shared_ptr<device>& ogl, bool blend_modes_wanted, bool straight_alpha_wanted, int channel_id)
+	impl(const spl::shared_ptr<device>& ogl, bool blend_modes_wanted, bool straight_alpha_wanted, int channel_id, const size_t max_frame_size)
 		: ogl_(ogl)
-		, renderer_(ogl, blend_modes_wanted, straight_alpha_wanted)
+		, renderer_(ogl, blend_modes_wanted, straight_alpha_wanted, max_frame_size)
 		, transform_stack_(1)
 	{
 		CASPAR_LOG(info) << L"Initialized OpenGL Accelerated GPU Image Mixer for channel " << channel_id;
@@ -324,9 +323,15 @@ public:
 		item.transform	= transform_stack_.back();
 		item.geometry	= frame.geometry();
 
-		// NOTE: Once we have copied the arrays they are no longer valid for reading!!! Check for alternative solution e.g. transfer with AMD_pinned_memory.
-		for(int n = 0; n < static_cast<int>(item.pix_desc.planes.size()); ++n)
-			item.textures.push_back(ogl_->copy_async(frame.image_data(n), item.pix_desc.planes[n].width, item.pix_desc.planes[n].height, item.pix_desc.planes[n].stride, item.transform.use_mipmap));
+
+		auto textures_ptr = boost::any_cast<std::shared_ptr<std::vector<future_texture>>>(frame.opaque());
+		if (textures_ptr) {
+			item.textures = *textures_ptr->get();
+		} else {
+			// NOTE: Once we have copied the arrays they are no longer valid for reading!!! Check for alternative solution e.g. transfer with AMD_pinned_memory.
+			for(int n = 0; n < static_cast<int>(item.pix_desc.planes.size()); ++n)
+				item.textures.push_back(ogl_->copy_async(frame.image_data(n), item.pix_desc.planes[n].width, item.pix_desc.planes[n].height, item.pix_desc.planes[n].stride, item.transform.use_mipmap));
+		}
 
 		layer_stack_.back()->items.push_back(item);
 	}
@@ -360,9 +365,39 @@ public:
 			return static_cast<int>(params[0]);
 		});
 	}
+	
+#ifdef WIN32
+    core::mutable_frame import_d3d_texture(const void*                                tag,
+                                           const std::shared_ptr<d3d::d3d_texture2d>& d3d_texture) override
+    {
+        // map directx texture with wgl texture
+        if (d3d_texture->gl_texture_id() == 0)
+            ogl_->invoke([=] { d3d_texture->gen_gl_texture(ogl_->d3d_interop()); });
+
+        // copy directx texture to gl texture
+        auto gl_texture = ogl_->invoke([=] {
+			return ogl_->copy_async(d3d_texture->gl_texture_id(), d3d_texture->width(), d3d_texture->height(), 4).share();
+        });
+
+        // make gl texture to draw
+        std::vector<future_texture> textures{make_ready_future(std::shared_ptr<texture>(gl_texture.get())).share()};
+
+        core::pixel_format_desc          desc(core::pixel_format::bgra);
+        desc.planes.push_back(core::pixel_format_desc::plane(d3d_texture->width(), d3d_texture->height(), 4));
+        return core::mutable_frame(
+			std::vector<array<uint8_t>>{},
+			core::mutable_audio_buffer(),
+            tag,
+            desc,
+			core::audio_channel_layout::invalid(),
+            [texs = std::move(textures)](const core::mutable_frame&) -> boost::any {
+                return std::make_shared<std::vector<future_texture>>(std::move(texs));
+            });
+    }
+#endif
 };
 
-image_mixer::image_mixer(const spl::shared_ptr<device>& ogl, bool blend_modes_wanted, bool straight_alpha_wanted, int channel_id) : impl_(new impl(ogl, blend_modes_wanted, straight_alpha_wanted, channel_id)){}
+image_mixer::image_mixer(const spl::shared_ptr<device>& ogl, bool blend_modes_wanted, bool straight_alpha_wanted, int channel_id, const size_t max_frame_size) : impl_(new impl(ogl, blend_modes_wanted, straight_alpha_wanted, channel_id, max_frame_size)){}
 image_mixer::~image_mixer(){}
 void image_mixer::push(const core::frame_transform& transform){impl_->push(transform);}
 void image_mixer::visit(const core::const_frame& frame){impl_->visit(frame);}
@@ -370,5 +405,13 @@ void image_mixer::pop(){impl_->pop();}
 int image_mixer::get_max_frame_size() { return impl_->get_max_frame_size(); }
 std::future<array<const std::uint8_t>> image_mixer::operator()(const core::video_format_desc& format_desc, bool straighten_alpha){return impl_->render(format_desc, straighten_alpha);}
 core::mutable_frame image_mixer::create_frame(const void* tag, const core::pixel_format_desc& desc, const core::audio_channel_layout& channel_layout) {return impl_->create_frame(tag, desc, channel_layout);}
+
+#ifdef WIN32
+core::mutable_frame image_mixer::import_d3d_texture(const void*                                tag,
+                                                    const std::shared_ptr<d3d::d3d_texture2d>& d3d_texture)
+{
+    return impl_->import_d3d_texture(tag, d3d_texture);
+}
+#endif
 
 }}}

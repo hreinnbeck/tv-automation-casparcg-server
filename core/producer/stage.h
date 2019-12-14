@@ -72,7 +72,8 @@ class stage_base : public interaction_sink
                                               bool                                   auto_play = false) = 0;
     virtual std::future<void>            pause(int index)                                                 = 0;
     virtual std::future<void>            resume(int index)                                                = 0;
-    virtual std::future<void>            play(int index)                                                  = 0;
+	virtual std::future<void>            play(int index)                                                  = 0;
+	virtual std::future<void>            preview(int index)                                               = 0;
     virtual std::future<void>            stop(int index)                                                  = 0;
     virtual std::future<std::wstring>    call(int index, const std::vector<std::wstring>& params)         = 0;
     virtual std::future<void>            clear(int index)                                                 = 0;
@@ -132,7 +133,8 @@ class stage : public stage_base
                                       bool                                   auto_play = false) override;
     std::future<void>            pause(int index) override;
     std::future<void>            resume(int index) override;
-    std::future<void>            play(int index) override;
+	std::future<void>            play(int index) override;
+	std::future<void>            preview(int index) override;
     std::future<void>            stop(int index) override;
     std::future<std::wstring>    call(int index, const std::vector<std::wstring>& params) override;
     std::future<void>            clear(int index) override;
@@ -210,6 +212,7 @@ class stage_delayed final : public stage_base
     std::future<void>            pause(int index) override;
     std::future<void>            resume(int index) override;
     std::future<void>            play(int index) override;
+	std::future<void>            preview(int index) override;
     std::future<void>            stop(int index) override;
     std::future<std::wstring>    call(int index, const std::vector<std::wstring>& params) override;
     std::future<void>            clear(int index) override;

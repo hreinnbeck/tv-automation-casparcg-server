@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=cdb630c6778da3e9e270cc6885a4e40f9f2e73f9$
+// $hash=b257247c1eab4ebd5796b5bc81670d437486d76f$
 //
 
 #include "libcef_dll/ctocpp/print_dialog_callback_ctocpp.h"
@@ -17,6 +17,7 @@
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 void CefPrintDialogCallbackCToCpp::Continue(
     CefRefPtr<CefPrintSettings> settings) {
   cef_print_dialog_callback_t* _struct = GetStruct();
@@ -34,7 +35,7 @@ void CefPrintDialogCallbackCToCpp::Continue(
   _struct->cont(_struct, CefPrintSettingsCToCpp::Unwrap(settings));
 }
 
-void CefPrintDialogCallbackCToCpp::Cancel() {
+NO_SANITIZE("cfi-icall") void CefPrintDialogCallbackCToCpp::Cancel() {
   cef_print_dialog_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, cancel))
     return;

@@ -36,6 +36,11 @@ public:
 		
 	core::mutable_frame create_frame(const void* tag, const core::pixel_format_desc& desc, const core::audio_channel_layout& channel_layout) override;
 
+#ifdef WIN32
+	core::mutable_frame import_d3d_texture(const void* tag,
+		const std::shared_ptr<d3d::d3d_texture2d>& d3d_texture) override;
+#endif
+
 	// Properties
 	int get_max_frame_size() override;
 private:

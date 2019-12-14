@@ -349,6 +349,13 @@ public:
 		}
 		return core::mutable_frame(std::move(buffers), core::mutable_audio_buffer(), tag, desc, channel_layout);
 	}
+
+#ifdef WIN32
+	core::mutable_frame import_d3d_texture(const void* tag, const std::shared_ptr<d3d::d3d_texture2d>& d3d_texture)
+	{
+		CASPAR_THROW_EXCEPTION(invalid_argument() << msg_info("cpu_mixer: import_d3d_texture not supported"));
+	}
+#endif
 };
 
 image_mixer::image_mixer(int channel_id) : impl_(new impl(channel_id)){}
@@ -359,5 +366,13 @@ void image_mixer::pop(){impl_->pop();}
 int image_mixer::get_max_frame_size() { return std::numeric_limits<int>::max(); }
 std::future<array<const std::uint8_t>> image_mixer::operator()(const core::video_format_desc& format_desc, bool /* straighten_alpha */){return impl_->render(format_desc);}
 core::mutable_frame image_mixer::create_frame(const void* tag, const core::pixel_format_desc& desc, const core::audio_channel_layout& channel_layout) {return impl_->create_frame(tag, desc, channel_layout);}
+
+#ifdef WIN32
+core::mutable_frame image_mixer::import_d3d_texture(const void* tag,
+	const std::shared_ptr<d3d::d3d_texture2d>& d3d_texture)
+{
+	return impl_->import_d3d_texture(tag, d3d_texture);
+}
+#endif
 
 }}}

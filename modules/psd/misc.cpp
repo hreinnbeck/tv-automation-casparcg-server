@@ -134,8 +134,10 @@ layer_tag string_to_layer_tags(const std::wstring& str) {
 
 	layer_tag result = layer_tag::none;
 	for (auto& flag : flags) {
-		if (boost::algorithm::iequals(flag, "producer"))
-			result = result | layer_tag::placeholder;
+		if (boost::algorithm::iequals(flag, "cg"))
+			result = result | layer_tag::cg_producer;
+		else if (boost::algorithm::iequals(flag, "producer"))
+			result = result | layer_tag::producer;
 		else if (boost::algorithm::iequals(flag, "dynamic")) {
 			result = result | layer_tag::explicit_dynamic;
 			result = result & (~layer_tag::rasterized);

@@ -95,6 +95,11 @@ typedef enum {
   LOGSEVERITY_VERBOSE,
 
   ///
+  // DEBUG logging.
+  ///
+  LOGSEVERITY_DEBUG = LOGSEVERITY_VERBOSE,
+
+  ///
   // INFO logging.
   ///
   LOGSEVERITY_INFO,
@@ -110,7 +115,13 @@ typedef enum {
   LOGSEVERITY_ERROR,
 
   ///
-  // Completely disable logging.
+  // FATAL logging.
+  ///
+  LOGSEVERITY_FATAL,
+
+  ///
+  // Disable logging to file for all messages, and to stderr for messages with
+  // severity less than FATAL.
   ///
   LOGSEVERITY_DISABLE = 99
 } cef_log_severity_t;
@@ -147,14 +158,6 @@ typedef struct _cef_settings_t {
   size_t size;
 
   ///
-  // Set to true (1) to use a single process for the browser and renderer. This
-  // run mode is not officially supported by Chromium and is less stable than
-  // the multi-process default. Also configurable using the "single-process"
-  // command-line switch.
-  ///
-  int single_process;
-
-  ///
   // Set to true (1) to disable the sandbox for sub-processes. See
   // cef_sandbox_win.h for requirements to enable the sandbox on Windows. Also
   // configurable using the "no-sandbox" command-line switch.
@@ -184,7 +187,7 @@ typedef struct _cef_settings_t {
   // Set to true (1) to have the browser process message loop run in a separate
   // thread. If false (0) than the CefDoMessageLoopWork() function must be
   // called from your application message loop. This option is only supported on
-  // Windows.
+  // Windows and Linux.
   ///
   int multi_threaded_message_loop;
 
@@ -293,9 +296,10 @@ typedef struct _cef_settings_t {
 
   ///
   // The log severity. Only messages of this severity level or higher will be
-  // logged. Also configurable using the "log-severity" command-line switch with
-  // a value of "verbose", "info", "warning", "error", "error-report" or
-  // "disable".
+  // logged. When set to DISABLE no messages will be written to the log file,
+  // but FATAL messages will still be output to stderr. Also configurable using
+  // the "log-severity" command-line switch with a value of "verbose", "info",
+  // "warning", "error", "fatal" or "disable".
   ///
   cef_log_severity_t log_severity;
 
@@ -792,6 +796,11 @@ typedef enum {
   // Segmentation fault.
   ///
   TS_PROCESS_CRASHED,
+
+  ///
+  // Out of memory. Some platforms may use TS_PROCESS_CRASHED instead.
+  ///
+  TS_PROCESS_OOM,
 } cef_termination_status_t;
 
 ///
@@ -1259,6 +1268,12 @@ typedef enum {
   // originated in the browser process.
   ///
   UR_FLAG_NO_RETRY_ON_5XX = 1 << 5,
+
+  ///
+  // If set 3XX responses will cause the fetch to halt immediately rather than
+  // continue through the redirect.
+  ///
+  UR_FLAG_STOP_ON_REDIRECT = 1 << 6,
 } cef_urlrequest_flags_t;
 
 ///
@@ -1374,23 +1389,41 @@ typedef enum {
   ///
   // The main thread in the browser. This will be the same as the main
   // application thread if CefInitialize() is called with a
-  // CefSettings.multi_threaded_message_loop value of false.
+  // CefSettings.multi_threaded_message_loop value of false. Do not perform
+  // blocking tasks on this thread. All tasks posted after
+  // CefBrowserProcessHandler::OnContextInitialized() and before CefShutdown()
+  // are guaranteed to run. This thread will outlive all other CEF threads.
   ///
   TID_UI,
 
   ///
-  // Used to interact with the database.
+  // Used for blocking tasks (e.g. file system access) where the user won't
+  // notice if the task takes an arbitrarily long time to complete. All tasks
+  // posted after CefBrowserProcessHandler::OnContextInitialized() and before
+  // CefShutdown() are guaranteed to run.
   ///
-  TID_DB,
+  TID_FILE_BACKGROUND,
+  TID_FILE = TID_FILE_BACKGROUND,
 
   ///
-  // Used to interact with the file system.
+  // Used for blocking tasks (e.g. file system access) that affect UI or
+  // responsiveness of future user interactions. Do not use if an immediate
+  // response to a user interaction is expected. All tasks posted after
+  // CefBrowserProcessHandler::OnContextInitialized() and before CefShutdown()
+  // are guaranteed to run.
+  // Examples:
+  // - Updating the UI to reflect progress on a long task.
+  // - Loading data that might be shown in the UI after a future user
+  //   interaction.
   ///
-  TID_FILE,
+  TID_FILE_USER_VISIBLE,
 
   ///
-  // Used for file system operations that block user interactions.
-  // Responsiveness of this thread affects users.
+  // Used for blocking tasks (e.g. file system access) that affect UI
+  // immediately after a user interaction. All tasks posted after
+  // CefBrowserProcessHandler::OnContextInitialized() and before CefShutdown()
+  // are guaranteed to run.
+  // Example: Generating data shown in the UI immediately after a click.
   ///
   TID_FILE_USER_BLOCKING,
 
@@ -1400,12 +1433,10 @@ typedef enum {
   TID_PROCESS_LAUNCHER,
 
   ///
-  // Used to handle slow HTTP cache operations.
-  ///
-  TID_CACHE,
-
-  ///
-  // Used to process IPC and network messages.
+  // Used to process IPC and network messages. Do not perform blocking tasks on
+  // this thread. All tasks posted after
+  // CefBrowserProcessHandler::OnContextInitialized() and before CefShutdown()
+  // are guaranteed to run.
   ///
   TID_IO,
 
@@ -1413,6 +1444,10 @@ typedef enum {
 
   ///
   // The main thread in the renderer. Used for all WebKit and V8 interaction.
+  // Tasks may be posted to this thread after
+  // CefRenderProcessHandler::OnRenderThreadCreated but are not guaranteed to
+  // run before sub-process termination (sub-processes may be killed at any time
+  // without warning).
   ///
   TID_RENDERER,
 } cef_thread_id_t;
@@ -2040,74 +2075,6 @@ typedef enum {
   ///
   FILE_DIALOG_HIDEREADONLY_FLAG = 0x02000000,
 } cef_file_dialog_mode_t;
-
-///
-// Geoposition error codes.
-///
-typedef enum {
-  GEOPOSITON_ERROR_NONE = 0,
-  GEOPOSITON_ERROR_PERMISSION_DENIED,
-  GEOPOSITON_ERROR_POSITION_UNAVAILABLE,
-  GEOPOSITON_ERROR_TIMEOUT,
-} cef_geoposition_error_code_t;
-
-///
-// Structure representing geoposition information. The properties of this
-// structure correspond to those of the JavaScript Position object although
-// their types may differ.
-///
-typedef struct _cef_geoposition_t {
-  ///
-  // Latitude in decimal degrees north (WGS84 coordinate frame).
-  ///
-  double latitude;
-
-  ///
-  // Longitude in decimal degrees west (WGS84 coordinate frame).
-  ///
-  double longitude;
-
-  ///
-  // Altitude in meters (above WGS84 datum).
-  ///
-  double altitude;
-
-  ///
-  // Accuracy of horizontal position in meters.
-  ///
-  double accuracy;
-
-  ///
-  // Accuracy of altitude in meters.
-  ///
-  double altitude_accuracy;
-
-  ///
-  // Heading in decimal degrees clockwise from true north.
-  ///
-  double heading;
-
-  ///
-  // Horizontal component of device velocity in meters per second.
-  ///
-  double speed;
-
-  ///
-  // Time of position measurement in milliseconds since Epoch in UTC time. This
-  // is taken from the host computer's system clock.
-  ///
-  cef_time_t timestamp;
-
-  ///
-  // Error code, see enum above.
-  ///
-  cef_geoposition_error_code_t error_code;
-
-  ///
-  // Human-readable error message.
-  ///
-  cef_string_t error_message;
-} cef_geoposition_t;
 
 ///
 // Print job color mode values.

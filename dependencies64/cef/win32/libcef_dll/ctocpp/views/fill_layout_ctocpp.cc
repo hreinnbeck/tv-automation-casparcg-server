@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=e08a6a71b5888f580c814b8dc8a5cbd5dcf3cfb3$
+// $hash=dcb84489ec3e4cb3970539a3dfd3e54508728bdb$
 //
 
 #include "libcef_dll/ctocpp/views/fill_layout_ctocpp.h"
@@ -17,6 +17,7 @@
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefBoxLayout> CefFillLayoutCToCpp::AsBoxLayout() {
   cef_layout_t* _struct = reinterpret_cast<cef_layout_t*>(GetStruct());
   if (CEF_MEMBER_MISSING(_struct, as_box_layout))
@@ -31,6 +32,7 @@ CefRefPtr<CefBoxLayout> CefFillLayoutCToCpp::AsBoxLayout() {
   return CefBoxLayoutCToCpp::Wrap(_retval);
 }
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefFillLayout> CefFillLayoutCToCpp::AsFillLayout() {
   cef_layout_t* _struct = reinterpret_cast<cef_layout_t*>(GetStruct());
   if (CEF_MEMBER_MISSING(_struct, as_fill_layout))
@@ -45,7 +47,7 @@ CefRefPtr<CefFillLayout> CefFillLayoutCToCpp::AsFillLayout() {
   return CefFillLayoutCToCpp::Wrap(_retval);
 }
 
-bool CefFillLayoutCToCpp::IsValid() {
+NO_SANITIZE("cfi-icall") bool CefFillLayoutCToCpp::IsValid() {
   cef_layout_t* _struct = reinterpret_cast<cef_layout_t*>(GetStruct());
   if (CEF_MEMBER_MISSING(_struct, is_valid))
     return false;

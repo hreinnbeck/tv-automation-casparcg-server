@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,13 +9,14 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=909f533ecdf6af2dca40e96d39c538c47b38f0bf$
+// $hash=6389a8402fade5483d5d7bef8c360e60b091e3a9$
 //
 
 #include "libcef_dll/ctocpp/waitable_event_ctocpp.h"
 
 // STATIC METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefWaitableEvent> CefWaitableEvent::CreateWaitableEvent(
     bool automatic_reset,
     bool initially_signaled) {
@@ -31,7 +32,7 @@ CefRefPtr<CefWaitableEvent> CefWaitableEvent::CreateWaitableEvent(
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
-void CefWaitableEventCToCpp::Reset() {
+NO_SANITIZE("cfi-icall") void CefWaitableEventCToCpp::Reset() {
   cef_waitable_event_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, reset))
     return;
@@ -42,7 +43,7 @@ void CefWaitableEventCToCpp::Reset() {
   _struct->reset(_struct);
 }
 
-void CefWaitableEventCToCpp::Signal() {
+NO_SANITIZE("cfi-icall") void CefWaitableEventCToCpp::Signal() {
   cef_waitable_event_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, signal))
     return;
@@ -53,7 +54,7 @@ void CefWaitableEventCToCpp::Signal() {
   _struct->signal(_struct);
 }
 
-bool CefWaitableEventCToCpp::IsSignaled() {
+NO_SANITIZE("cfi-icall") bool CefWaitableEventCToCpp::IsSignaled() {
   cef_waitable_event_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, is_signaled))
     return false;
@@ -67,7 +68,7 @@ bool CefWaitableEventCToCpp::IsSignaled() {
   return _retval ? true : false;
 }
 
-void CefWaitableEventCToCpp::Wait() {
+NO_SANITIZE("cfi-icall") void CefWaitableEventCToCpp::Wait() {
   cef_waitable_event_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, wait))
     return;
@@ -78,7 +79,7 @@ void CefWaitableEventCToCpp::Wait() {
   _struct->wait(_struct);
 }
 
-bool CefWaitableEventCToCpp::TimedWait(int64 max_ms) {
+NO_SANITIZE("cfi-icall") bool CefWaitableEventCToCpp::TimedWait(int64 max_ms) {
   cef_waitable_event_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, timed_wait))
     return false;

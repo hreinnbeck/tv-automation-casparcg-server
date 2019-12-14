@@ -46,6 +46,10 @@ source_group(sources ./*)
 if (MSVC)
 	target_link_libraries(casparcg
 		zlibstat.lib
+		
+		d3d9.lib
+		d3d11.lib
+		dxgi.lib
 	)
 endif ()
 

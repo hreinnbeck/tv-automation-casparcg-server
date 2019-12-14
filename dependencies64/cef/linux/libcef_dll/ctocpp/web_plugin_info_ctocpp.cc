@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,14 +9,14 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=d79f25c885d7397e93bb73626c50fa387a3cf1c6$
+// $hash=45a48d5d97bd0239b2af24e1527211c89d5dec78$
 //
 
 #include "libcef_dll/ctocpp/web_plugin_info_ctocpp.h"
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
-CefString CefWebPluginInfoCToCpp::GetName() {
+NO_SANITIZE("cfi-icall") CefString CefWebPluginInfoCToCpp::GetName() {
   cef_web_plugin_info_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_name))
     return CefString();
@@ -32,7 +32,7 @@ CefString CefWebPluginInfoCToCpp::GetName() {
   return _retvalStr;
 }
 
-CefString CefWebPluginInfoCToCpp::GetPath() {
+NO_SANITIZE("cfi-icall") CefString CefWebPluginInfoCToCpp::GetPath() {
   cef_web_plugin_info_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_path))
     return CefString();
@@ -48,7 +48,7 @@ CefString CefWebPluginInfoCToCpp::GetPath() {
   return _retvalStr;
 }
 
-CefString CefWebPluginInfoCToCpp::GetVersion() {
+NO_SANITIZE("cfi-icall") CefString CefWebPluginInfoCToCpp::GetVersion() {
   cef_web_plugin_info_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_version))
     return CefString();
@@ -64,7 +64,7 @@ CefString CefWebPluginInfoCToCpp::GetVersion() {
   return _retvalStr;
 }
 
-CefString CefWebPluginInfoCToCpp::GetDescription() {
+NO_SANITIZE("cfi-icall") CefString CefWebPluginInfoCToCpp::GetDescription() {
   cef_web_plugin_info_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_description))
     return CefString();

@@ -73,11 +73,13 @@ void frame_producer_registry::register_thumbnail_producer(const thumbnail_produc
 frame_producer_dependencies::frame_producer_dependencies(
     const spl::shared_ptr<core::frame_factory>&          frame_factory,
     const std::vector<spl::shared_ptr<video_channel>>&   channels,
+	const video_format_repository& format_repository,
     const video_format_desc&                             format_desc,
     const spl::shared_ptr<const frame_producer_registry> producer_registry,
     const spl::shared_ptr<const cg_producer_registry>    cg_registry)
     : frame_factory(frame_factory)
     , channels(channels)
+	, format_repository(format_repository)
     , format_desc(format_desc)
     , producer_registry(producer_registry)
     , cg_registry(cg_registry)
@@ -361,7 +363,7 @@ spl::shared_ptr<core::frame_producer> do_create_producer(const frame_producer_de
     });
 
     if (producer == frame_producer::empty())
-        producer = create_color_producer(dependencies.frame_factory, params);
+        producer = create_color_producer(dependencies, params);
 
     if (producer == frame_producer::empty())
         return producer;

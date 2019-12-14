@@ -26,11 +26,13 @@
 #include <common/memory.h>
 #include <common/filesystem_monitor.h>
 
+#include <core/video_format.h>
+
 #include "fwd.h"
 
 namespace caspar { namespace core {
 
-typedef std::function<void (
+	typedef std::function<void (
 		const const_frame& frame,
 		const video_format_desc& format_desc,
 		const boost::filesystem::path& output_file,
@@ -46,6 +48,7 @@ public:
 			const boost::filesystem::path& thumbnails_path,
 			int width,
 			int height,
+			const video_format_repository& format_repository,
 			const video_format_desc& render_video_mode,
 			std::unique_ptr<image_mixer> image_mixer,
 			int generate_delay_millis,

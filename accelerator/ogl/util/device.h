@@ -52,12 +52,19 @@ public:
 			
 	spl::shared_ptr<texture> create_texture(int width, int height, int stride, bool mipmapped);
 	array<std::uint8_t>		 create_array(int size);
+
+	void allocate_buffers(int count, int width, int height, int depth, bool mipmapped, bool for_channel);
 		
 	// NOTE: Since the returned texture is cached it SHOULD NOT be modified.
 	std::future<std::shared_ptr<texture>>	copy_async(const array<const std::uint8_t>& source, int width, int height, int stride, bool mipmapped);
 
-	std::future<std::shared_ptr<texture>>	copy_async(const array<std::uint8_t>& source, int width, int height, int stride, bool mipmapped);
+	//std::future<std::shared_ptr<texture>>	copy_async(const array<std::uint8_t>& source, int width, int height, int stride, bool mipmapped);
 	std::future<array<const std::uint8_t>>	copy_async(const spl::shared_ptr<texture>& source);
+	
+#ifdef WIN32
+    std::shared_ptr<void>                 d3d_interop() const;
+    std::future<std::shared_ptr<texture>> copy_async(uint32_t source, int width, int height, int stride);
+#endif
 			
 	template<typename Func>
 	auto begin_invoke(Func&& func, task_priority priority = task_priority::normal_priority) -> std::future<decltype(func())> // noexcept

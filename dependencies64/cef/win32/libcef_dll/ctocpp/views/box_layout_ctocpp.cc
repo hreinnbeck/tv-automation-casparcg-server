@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=12c969efc3a366f77f484907a7bc856ce0508862$
+// $hash=b9265a23c995bbb6f5120dd8c5ccff5eaf1d0f91$
 //
 
 #include "libcef_dll/ctocpp/views/box_layout_ctocpp.h"
@@ -18,6 +18,7 @@
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 void CefBoxLayoutCToCpp::SetFlexForView(CefRefPtr<CefView> view, int flex) {
   cef_box_layout_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, set_flex_for_view))
@@ -34,6 +35,7 @@ void CefBoxLayoutCToCpp::SetFlexForView(CefRefPtr<CefView> view, int flex) {
   _struct->set_flex_for_view(_struct, CefViewCToCpp::Unwrap(view), flex);
 }
 
+NO_SANITIZE("cfi-icall")
 void CefBoxLayoutCToCpp::ClearFlexForView(CefRefPtr<CefView> view) {
   cef_box_layout_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, clear_flex_for_view))
@@ -50,6 +52,7 @@ void CefBoxLayoutCToCpp::ClearFlexForView(CefRefPtr<CefView> view) {
   _struct->clear_flex_for_view(_struct, CefViewCToCpp::Unwrap(view));
 }
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefBoxLayout> CefBoxLayoutCToCpp::AsBoxLayout() {
   cef_layout_t* _struct = reinterpret_cast<cef_layout_t*>(GetStruct());
   if (CEF_MEMBER_MISSING(_struct, as_box_layout))
@@ -64,6 +67,7 @@ CefRefPtr<CefBoxLayout> CefBoxLayoutCToCpp::AsBoxLayout() {
   return CefBoxLayoutCToCpp::Wrap(_retval);
 }
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefFillLayout> CefBoxLayoutCToCpp::AsFillLayout() {
   cef_layout_t* _struct = reinterpret_cast<cef_layout_t*>(GetStruct());
   if (CEF_MEMBER_MISSING(_struct, as_fill_layout))
@@ -78,7 +82,7 @@ CefRefPtr<CefFillLayout> CefBoxLayoutCToCpp::AsFillLayout() {
   return CefFillLayoutCToCpp::Wrap(_retval);
 }
 
-bool CefBoxLayoutCToCpp::IsValid() {
+NO_SANITIZE("cfi-icall") bool CefBoxLayoutCToCpp::IsValid() {
   cef_layout_t* _struct = reinterpret_cast<cef_layout_t*>(GetStruct());
   if (CEF_MEMBER_MISSING(_struct, is_valid))
     return false;

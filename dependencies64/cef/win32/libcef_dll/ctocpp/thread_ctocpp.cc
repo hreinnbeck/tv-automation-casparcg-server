@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=c82eeaa3703fd56e40a4d4c0afbe1abd71920c46$
+// $hash=a5f0b19bb86eb3dd73b290d0dbf80c5f0717aa27$
 //
 
 #include "libcef_dll/ctocpp/thread_ctocpp.h"
@@ -17,6 +17,7 @@
 
 // STATIC METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefThread> CefThread::CreateThread(
     const CefString& display_name,
     cef_thread_priority_t priority,
@@ -38,6 +39,7 @@ CefRefPtr<CefThread> CefThread::CreateThread(
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefTaskRunner> CefThreadCToCpp::GetTaskRunner() {
   cef_thread_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_task_runner))
@@ -52,6 +54,7 @@ CefRefPtr<CefTaskRunner> CefThreadCToCpp::GetTaskRunner() {
   return CefTaskRunnerCToCpp::Wrap(_retval);
 }
 
+NO_SANITIZE("cfi-icall")
 cef_platform_thread_id_t CefThreadCToCpp::GetPlatformThreadId() {
   cef_thread_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_platform_thread_id))
@@ -66,7 +69,7 @@ cef_platform_thread_id_t CefThreadCToCpp::GetPlatformThreadId() {
   return _retval;
 }
 
-void CefThreadCToCpp::Stop() {
+NO_SANITIZE("cfi-icall") void CefThreadCToCpp::Stop() {
   cef_thread_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, stop))
     return;
@@ -77,7 +80,7 @@ void CefThreadCToCpp::Stop() {
   _struct->stop(_struct);
 }
 
-bool CefThreadCToCpp::IsRunning() {
+NO_SANITIZE("cfi-icall") bool CefThreadCToCpp::IsRunning() {
   cef_thread_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, is_running))
     return false;

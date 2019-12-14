@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=894bf599d661a7014fd8106d8cccbaff20b9d7ac$
+// $hash=623cadf0650f3e44162d02ff05e54aa6793960a4$
 //
 
 #include "libcef_dll/ctocpp/x509cert_principal_ctocpp.h"
@@ -17,6 +17,7 @@
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 CefString CefX509CertPrincipalCToCpp::GetDisplayName() {
   cef_x509cert_principal_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_display_name))
@@ -33,7 +34,7 @@ CefString CefX509CertPrincipalCToCpp::GetDisplayName() {
   return _retvalStr;
 }
 
-CefString CefX509CertPrincipalCToCpp::GetCommonName() {
+NO_SANITIZE("cfi-icall") CefString CefX509CertPrincipalCToCpp::GetCommonName() {
   cef_x509cert_principal_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_common_name))
     return CefString();
@@ -49,6 +50,7 @@ CefString CefX509CertPrincipalCToCpp::GetCommonName() {
   return _retvalStr;
 }
 
+NO_SANITIZE("cfi-icall")
 CefString CefX509CertPrincipalCToCpp::GetLocalityName() {
   cef_x509cert_principal_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_locality_name))
@@ -65,6 +67,7 @@ CefString CefX509CertPrincipalCToCpp::GetLocalityName() {
   return _retvalStr;
 }
 
+NO_SANITIZE("cfi-icall")
 CefString CefX509CertPrincipalCToCpp::GetStateOrProvinceName() {
   cef_x509cert_principal_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_state_or_province_name))
@@ -81,6 +84,7 @@ CefString CefX509CertPrincipalCToCpp::GetStateOrProvinceName() {
   return _retvalStr;
 }
 
+NO_SANITIZE("cfi-icall")
 CefString CefX509CertPrincipalCToCpp::GetCountryName() {
   cef_x509cert_principal_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_country_name))
@@ -97,6 +101,7 @@ CefString CefX509CertPrincipalCToCpp::GetCountryName() {
   return _retvalStr;
 }
 
+NO_SANITIZE("cfi-icall")
 void CefX509CertPrincipalCToCpp::GetStreetAddresses(
     std::vector<CefString>& addresses) {
   cef_x509cert_principal_t* _struct = GetStruct();
@@ -122,6 +127,7 @@ void CefX509CertPrincipalCToCpp::GetStreetAddresses(
   }
 }
 
+NO_SANITIZE("cfi-icall")
 void CefX509CertPrincipalCToCpp::GetOrganizationNames(
     std::vector<CefString>& names) {
   cef_x509cert_principal_t* _struct = GetStruct();
@@ -147,6 +153,7 @@ void CefX509CertPrincipalCToCpp::GetOrganizationNames(
   }
 }
 
+NO_SANITIZE("cfi-icall")
 void CefX509CertPrincipalCToCpp::GetOrganizationUnitNames(
     std::vector<CefString>& names) {
   cef_x509cert_principal_t* _struct = GetStruct();
@@ -172,6 +179,7 @@ void CefX509CertPrincipalCToCpp::GetOrganizationUnitNames(
   }
 }
 
+NO_SANITIZE("cfi-icall")
 void CefX509CertPrincipalCToCpp::GetDomainComponents(
     std::vector<CefString>& components) {
   cef_x509cert_principal_t* _struct = GetStruct();

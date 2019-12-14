@@ -50,6 +50,9 @@ public:
 
 	texture& operator=(texture&& other);
 		
+#ifdef WIN32
+    void copy_from(int source);
+#endif
 	void copy_from(buffer& source);
 	void copy_to(buffer& dest);
 			

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,14 +9,14 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=61da15e97126d0c2142ae7b71c9c1833520d6f7c$
+// $hash=53e2ebe08cc8370af8e04edb04c7661f1f5290fe$
 //
 
 #include "libcef_dll/ctocpp/request_callback_ctocpp.h"
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
-void CefRequestCallbackCToCpp::Continue(bool allow) {
+NO_SANITIZE("cfi-icall") void CefRequestCallbackCToCpp::Continue(bool allow) {
   cef_request_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, cont))
     return;
@@ -27,7 +27,7 @@ void CefRequestCallbackCToCpp::Continue(bool allow) {
   _struct->cont(_struct, allow);
 }
 
-void CefRequestCallbackCToCpp::Cancel() {
+NO_SANITIZE("cfi-icall") void CefRequestCallbackCToCpp::Cancel() {
   cef_request_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, cancel))
     return;

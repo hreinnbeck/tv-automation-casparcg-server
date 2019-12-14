@@ -1,5 +1,32 @@
 C H A N G E S
 
+CasparCG 2.1.9 NRK (w.r.t 2.1.8 NRK)
+==========================================
+
+  o Add some mixer and tween properties to OSC
+
+  o Add individual layer audio levels to OSC
+  
+  o Add producer type and channel layout to OSC
+
+  o Add improved parameter syntax to STING transitions
+  
+  o Add audio fade properties to STING transitions
+  
+  o Add audio fade properties to STING transitions
+  
+  o Add log lines if an portion of the channel tick takes too long (mixer/producers/consumers)
+  
+  o Backport some opengl performance improvements
+  
+  o Add config structure to preallocate opengl buffers at startup
+  
+  o Initial support for running channels at custom resolutions
+  
+  o Add support for a LOAD without parameters, to move the background producer into the foreground as paused
+
+  o Add CLEAR_ON_404 parameter to LOAD/LOADBG/PLAY, to use an empty producer if the original command 404 errors
+
 CasparCG 2.1.8 NRK (w.r.t 2.1.7 NRK)
 ==========================================
 

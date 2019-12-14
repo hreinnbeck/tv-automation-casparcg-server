@@ -34,6 +34,7 @@ class clk_protocol_strategy_factory : public IO::protocol_strategy_factory<wchar
 	clk_command_processor command_processor_;
 public:
 	clk_protocol_strategy_factory(
+			const core::video_format_repository format_repository,
 			const std::vector<spl::shared_ptr<core::video_channel>>& channels,
 			const spl::shared_ptr<core::cg_producer_registry>& cg_registry,
 			const spl::shared_ptr<const core::frame_producer_registry>& producer_registry);

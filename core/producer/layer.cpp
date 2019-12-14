@@ -120,7 +120,7 @@ public:
 		is_paused_ = false;
 	}
 
-	void load(spl::shared_ptr<frame_producer> producer, bool preview, bool auto_play)
+	void load(spl::shared_ptr<frame_producer> producer, bool preview_producer, bool auto_play)
 	{
 //		background_->unsubscribe(background_event_subject_);
 		background_ = std::move(producer);
@@ -128,16 +128,22 @@ public:
 
 		auto_play_ = auto_play;
 
-		if(preview)
+		if(preview_producer)
 		{
-			play();
-			receive(video_format::invalid);
-			foreground_->paused(true);
-			is_paused_ = true;
+			preview(true);
 		}
 
 		if (auto_play_ && foreground_ == frame_producer::empty())
 			play();
+	}
+
+	void preview(bool force) {
+		if (force || background_ != frame_producer::empty()) {
+			play();
+			receive(video_format_repository::invalid());
+			foreground_->paused(true);
+			is_paused_ = true;
+		}
 	}
 
 	void play()
@@ -340,7 +346,8 @@ void layer::swap(layer& other)
 	other.impl_->update_index(old_index);
 }
 void layer::load(spl::shared_ptr<frame_producer> frame_producer, bool preview, bool auto_play){return impl_->load(std::move(frame_producer), preview, auto_play);}
-void layer::play(){impl_->play();}
+void layer::play() { impl_->play(); }
+void layer::preview() { impl_->preview(false); }
 void layer::pause(){impl_->pause();}
 void layer::resume(){impl_->resume();}
 void layer::stop(){impl_->stop();}

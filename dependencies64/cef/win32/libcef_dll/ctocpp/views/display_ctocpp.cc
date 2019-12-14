@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=25e5c79b70c5058a8250d50d458e10884c8dbb50$
+// $hash=d94d266c36d375d36f9bd11e416f69911dcdadeb$
 //
 
 #include "libcef_dll/ctocpp/views/display_ctocpp.h"
@@ -17,7 +17,7 @@
 
 // STATIC METHODS - Body may be edited by hand.
 
-CefRefPtr<CefDisplay> CefDisplay::GetPrimaryDisplay() {
+NO_SANITIZE("cfi-icall") CefRefPtr<CefDisplay> CefDisplay::GetPrimaryDisplay() {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
 
   // Execute
@@ -27,6 +27,7 @@ CefRefPtr<CefDisplay> CefDisplay::GetPrimaryDisplay() {
   return CefDisplayCToCpp::Wrap(_retval);
 }
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefDisplay> CefDisplay::GetDisplayNearestPoint(
     const CefPoint& point,
     bool input_pixel_coords) {
@@ -40,6 +41,7 @@ CefRefPtr<CefDisplay> CefDisplay::GetDisplayNearestPoint(
   return CefDisplayCToCpp::Wrap(_retval);
 }
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefDisplay> CefDisplay::GetDisplayMatchingBounds(
     const CefRect& bounds,
     bool input_pixel_coords) {
@@ -53,7 +55,7 @@ CefRefPtr<CefDisplay> CefDisplay::GetDisplayMatchingBounds(
   return CefDisplayCToCpp::Wrap(_retval);
 }
 
-size_t CefDisplay::GetDisplayCount() {
+NO_SANITIZE("cfi-icall") size_t CefDisplay::GetDisplayCount() {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
 
   // Execute
@@ -63,6 +65,7 @@ size_t CefDisplay::GetDisplayCount() {
   return _retval;
 }
 
+NO_SANITIZE("cfi-icall")
 void CefDisplay::GetAllDisplays(std::vector<CefRefPtr<CefDisplay>>& displays) {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
 
@@ -98,7 +101,7 @@ void CefDisplay::GetAllDisplays(std::vector<CefRefPtr<CefDisplay>>& displays) {
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
-int64 CefDisplayCToCpp::GetID() {
+NO_SANITIZE("cfi-icall") int64 CefDisplayCToCpp::GetID() {
   cef_display_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_id))
     return 0;
@@ -112,7 +115,7 @@ int64 CefDisplayCToCpp::GetID() {
   return _retval;
 }
 
-float CefDisplayCToCpp::GetDeviceScaleFactor() {
+NO_SANITIZE("cfi-icall") float CefDisplayCToCpp::GetDeviceScaleFactor() {
   cef_display_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_device_scale_factor))
     return 0;
@@ -126,6 +129,7 @@ float CefDisplayCToCpp::GetDeviceScaleFactor() {
   return _retval;
 }
 
+NO_SANITIZE("cfi-icall")
 void CefDisplayCToCpp::ConvertPointToPixels(CefPoint& point) {
   cef_display_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, convert_point_to_pixels))
@@ -137,6 +141,7 @@ void CefDisplayCToCpp::ConvertPointToPixels(CefPoint& point) {
   _struct->convert_point_to_pixels(_struct, &point);
 }
 
+NO_SANITIZE("cfi-icall")
 void CefDisplayCToCpp::ConvertPointFromPixels(CefPoint& point) {
   cef_display_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, convert_point_from_pixels))
@@ -148,7 +153,7 @@ void CefDisplayCToCpp::ConvertPointFromPixels(CefPoint& point) {
   _struct->convert_point_from_pixels(_struct, &point);
 }
 
-CefRect CefDisplayCToCpp::GetBounds() {
+NO_SANITIZE("cfi-icall") CefRect CefDisplayCToCpp::GetBounds() {
   cef_display_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_bounds))
     return CefRect();
@@ -162,7 +167,7 @@ CefRect CefDisplayCToCpp::GetBounds() {
   return _retval;
 }
 
-CefRect CefDisplayCToCpp::GetWorkArea() {
+NO_SANITIZE("cfi-icall") CefRect CefDisplayCToCpp::GetWorkArea() {
   cef_display_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_work_area))
     return CefRect();
@@ -176,7 +181,7 @@ CefRect CefDisplayCToCpp::GetWorkArea() {
   return _retval;
 }
 
-int CefDisplayCToCpp::GetRotation() {
+NO_SANITIZE("cfi-icall") int CefDisplayCToCpp::GetRotation() {
   cef_display_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_rotation))
     return 0;

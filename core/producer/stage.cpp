@@ -135,6 +135,10 @@ struct stage::impl : public std::enable_shared_from_this<impl>
         graph_->set_value("produce-time", frame_timer.elapsed() * format_desc.fps * 0.5);
         *monitor_subject_ << monitor::message("/profiler/time") % frame_timer.elapsed() % (1.0 / format_desc.fps);
 
+		if (frame_timer.elapsed() > (1.0 / format_desc.fps)) {
+			CASPAR_LOG(warning) << L"[channel] Performance warning. Produce blocked: " << frame_timer.elapsed();
+		}
+
         return frames;
     }
 
@@ -246,6 +250,10 @@ struct stage::impl : public std::enable_shared_from_this<impl>
 		*monitor_subject_ << monitor::message("/layer/" + std::to_string(index) + "/event/play") % true;
 		return executor_.begin_invoke([=] { get_layer(index).play(); }, task_priority::high_priority);
     }
+	std::future<void> preview(int index)
+	{
+		return executor_.begin_invoke([=] { get_layer(index).preview(); }, task_priority::high_priority);
+	}
 
     std::future<void> stop(int index)
     {
@@ -506,6 +514,7 @@ std::future<void>            stage::load(int                                    
 std::future<void> stage::pause(int index) { return impl_->pause(index); }
 std::future<void> stage::resume(int index) { return impl_->resume(index); }
 std::future<void> stage::play(int index) { return impl_->play(index); }
+std::future<void> stage::preview(int index) { return impl_->preview(index); }
 std::future<void> stage::stop(int index) { return impl_->stop(index); }
 std::future<void> stage::clear(int index) { return impl_->clear(index); }
 std::future<void> stage::clear() { return impl_->clear(); }
@@ -600,7 +609,11 @@ std::future<void> stage_delayed::resume(int index)
 }
 std::future<void> stage_delayed::play(int index)
 {
-    return executor_.begin_invoke([=]() { return stage_->play(index).get(); });
+	return executor_.begin_invoke([=]() { return stage_->play(index).get(); });
+}
+std::future<void> stage_delayed::preview(int index)
+{
+	return executor_.begin_invoke([=]() { return stage_->preview(index).get(); });
 }
 std::future<void> stage_delayed::stop(int index)
 {

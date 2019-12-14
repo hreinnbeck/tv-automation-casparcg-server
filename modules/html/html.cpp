@@ -53,6 +53,10 @@
 #pragma comment(lib, "libcef.lib")
 #pragma comment(lib, "libcef_dll_wrapper.lib")
 
+#ifdef WIN32
+#include <accelerator/d3d/d3d_device.h>
+#endif
+
 namespace caspar { namespace html {
 
 std::unique_ptr<executor> g_cef_executor;
@@ -326,6 +330,15 @@ void init(core::module_dependencies dependencies)
 	g_cef_executor->invoke([&]
 	{
 		const bool enable_gpu = env::properties().get(L"configuration.html.enable-gpu", false);
+		
+#ifdef WIN32
+        if (enable_gpu) {
+            auto dev = accelerator::d3d::d3d_device::get_device();
+            if (!dev)
+				CASPAR_LOG(warning) << L"Failed to create directX device for cef gpu acceleration";
+		}
+#endif
+
 		CefSettings settings;
 		settings.command_line_args_disabled = false;
 		settings.no_sandbox = true;

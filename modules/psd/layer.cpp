@@ -671,7 +671,8 @@ bool layer::is_explicit_dynamic() const { return (impl_->tags_ & layer_tag::expl
 bool layer::is_static() const { return (impl_->tags_ & layer_tag::rasterized) == layer_tag::rasterized; }
 bool layer::is_movable() const { return (impl_->tags_ & layer_tag::moveable) == layer_tag::moveable; }
 bool layer::is_resizable() const { return (impl_->tags_ & layer_tag::resizable) == layer_tag::resizable; }
-bool layer::is_placeholder() const { return (impl_->tags_ & layer_tag::placeholder) == layer_tag::placeholder; }
+bool layer::is_producer() const { return (impl_->tags_ & layer_tag::producer) == layer_tag::producer; }
+bool layer::is_cg_producer() const { return (impl_->tags_ & layer_tag::cg_producer) == layer_tag::cg_producer; }
 bool layer::is_cornerpin() const { return (impl_->tags_ & layer_tag::cornerpin) == layer_tag::cornerpin; }
 
 layer_tag layer::tags() const { return impl_->tags_; }

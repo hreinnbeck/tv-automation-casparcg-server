@@ -36,7 +36,6 @@ set(LIBCEF_BASE_SRCS
   base/cef_ref_counted.cc
   base/cef_string16.cc
   base/cef_thread_checker_impl.cc
-  base/cef_thread_collision_warner.cc
   base/cef_weak_ptr.cc
   )
 source_group(libcef_dll\\\\base FILES ${LIBCEF_BASE_SRCS})
@@ -84,10 +83,6 @@ set(LIBCEF_CPPTOC_SRCS
   cpptoc/find_handler_cpptoc.h
   cpptoc/focus_handler_cpptoc.cc
   cpptoc/focus_handler_cpptoc.h
-  cpptoc/geolocation_handler_cpptoc.cc
-  cpptoc/geolocation_handler_cpptoc.h
-  cpptoc/get_geolocation_callback_cpptoc.cc
-  cpptoc/get_geolocation_callback_cpptoc.h
   cpptoc/jsdialog_handler_cpptoc.cc
   cpptoc/jsdialog_handler_cpptoc.h
   cpptoc/keyboard_handler_cpptoc.cc
@@ -140,6 +135,8 @@ set(LIBCEF_CPPTOC_SRCS
   cpptoc/urlrequest_client_cpptoc.h
   cpptoc/v8accessor_cpptoc.cc
   cpptoc/v8accessor_cpptoc.h
+  cpptoc/v8array_buffer_release_callback_cpptoc.cc
+  cpptoc/v8array_buffer_release_callback_cpptoc.h
   cpptoc/v8handler_cpptoc.cc
   cpptoc/v8handler_cpptoc.h
   cpptoc/v8interceptor_cpptoc.cc
@@ -222,8 +219,6 @@ set(LIBCEF_CTOCPP_SRCS
   ctocpp/file_dialog_callback_ctocpp.h
   ctocpp/frame_ctocpp.cc
   ctocpp/frame_ctocpp.h
-  ctocpp/geolocation_callback_ctocpp.cc
-  ctocpp/geolocation_callback_ctocpp.h
   ctocpp/get_extension_resource_callback_ctocpp.cc
   ctocpp/get_extension_resource_callback_ctocpp.h
   ctocpp/image_ctocpp.cc
@@ -383,8 +378,6 @@ set(LIBCEF_INCLUDE_SRCS
   ../include/cef_find_handler.h
   ../include/cef_focus_handler.h
   ../include/cef_frame.h
-  ../include/cef_geolocation.h
-  ../include/cef_geolocation_handler.h
   ../include/cef_image.h
   ../include/cef_jsdialog_handler.h
   ../include/cef_keyboard_handler.h
@@ -432,6 +425,7 @@ set(LIBCEF_INCLUDE_SRCS
   )
 set(LIBCEF_INCLUDE_SRCS_MACOSX
   ../include/cef_application_mac.h
+  ../include/cef_sandbox_mac.h
   )
 set(LIBCEF_INCLUDE_SRCS_WINDOWS
   ../include/cef_sandbox_win.h
@@ -461,7 +455,6 @@ set(LIBCEF_INCLUDE_BASE_SRCS
   ../include/base/cef_string16.h
   ../include/base/cef_template_util.h
   ../include/base/cef_thread_checker.h
-  ../include/base/cef_thread_collision_warner.h
   ../include/base/cef_trace_event.h
   ../include/base/cef_tuple.h
   ../include/base/cef_weak_ptr.h
@@ -517,8 +510,6 @@ set(LIBCEF_INCLUDE_CAPI_SRCS
   ../include/capi/cef_find_handler_capi.h
   ../include/capi/cef_focus_handler_capi.h
   ../include/capi/cef_frame_capi.h
-  ../include/capi/cef_geolocation_capi.h
-  ../include/capi/cef_geolocation_handler_capi.h
   ../include/capi/cef_image_capi.h
   ../include/capi/cef_jsdialog_handler_capi.h
   ../include/capi/cef_keyboard_handler_capi.h
@@ -667,6 +658,10 @@ set(LIBCEF_INCLUDE_WRAPPER_SRCS
   ../include/wrapper/cef_xml_object.h
   ../include/wrapper/cef_zip_archive.h
   )
+set(LIBCEF_INCLUDE_WRAPPER_SRCS_MACOSX
+  ../include/wrapper/cef_library_loader.h
+  )
+LIBCEF_APPEND_PLATFORM_SOURCES(LIBCEF_INCLUDE_WRAPPER_SRCS)
 source_group(include\\\\wrapper FILES ${LIBCEF_INCLUDE_WRAPPER_SRCS})
 
 set(LIBCEF_WRAPPER_SRCS
@@ -682,6 +677,11 @@ set(LIBCEF_WRAPPER_SRCS
   wrapper/libcef_dll_wrapper.cc
   wrapper/libcef_dll_wrapper2.cc
   )
+set(LIBCEF_WRAPPER_SRCS_MACOSX
+  wrapper/cef_library_loader_mac.mm
+  wrapper/libcef_dll_dylib.cc
+  )
+LIBCEF_APPEND_PLATFORM_SOURCES(LIBCEF_WRAPPER_SRCS)
 source_group(libcef_dll\\\\wrapper FILES ${LIBCEF_WRAPPER_SRCS})
 
 add_library(${CEF_TARGET}

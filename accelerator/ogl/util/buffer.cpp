@@ -58,17 +58,14 @@ public:
 		, usage_(usage == buffer::usage::write_only ? GL_STREAM_DRAW : GL_STREAM_READ)
 	{
 		CASPAR_LOG_CALL(trace) << "buffer::buffer() <- " << get_context();
-		caspar::timer timer;
 
 		data_ = nullptr;
 		GL(glGenBuffers(1, &pbo_));
-		bind();	
-		GL(glBufferData(target_, size_, NULL, usage_));		
-		if(usage_ == GL_STREAM_DRAW)
-		{
-			auto result = GL2(glMapBuffer(target_, usage_ == GL_STREAM_DRAW ? GL_WRITE_ONLY : GL_READ_ONLY));
-			data_ = reinterpret_cast<uint8_t*>(result);
-		}
+		bind();
+		auto usage_flags = (usage_ == GL_STREAM_DRAW ? GL_MAP_WRITE_BIT | GL_MAP_COHERENT_BIT : GL_MAP_READ_BIT) |  GL_MAP_PERSISTENT_BIT;
+		GL(glBufferStorage(target_, size_, NULL, usage_flags));
+		auto result = GL2(glMapBufferRange(target_, 0, size_, usage_flags | (usage_ == GL_STREAM_DRAW ? GL_MAP_UNSYNCHRONIZED_BIT | GL_MAP_INVALIDATE_RANGE_BIT : 0)));
+		data_ = reinterpret_cast<uint8_t*>(result);
 		unbind();
 
 		if(!pbo_)
@@ -77,9 +74,6 @@ public:
 		(usage == buffer::usage::write_only ? g_w_total_count : g_r_total_count)	++;
 		(usage == buffer::usage::write_only ? g_w_total_size : g_r_total_size)		+= size_;
 		
-		if(timer.elapsed() > 0.02)
-			CASPAR_LOG(warning) << L"[buffer] Performance warning. Buffer allocation blocked: " << timer.elapsed();
-	
 		//CASPAR_LOG(trace) << "[buffer] [" << ++(usage_ == buffer::usage::write_only ? g_w_total_count : g_r_total_count) << L"] allocated size:" << size_ << " usage: " << (usage == buffer::usage::write_only ? "write_only" : "read_only");
 	}	
 
@@ -89,43 +83,6 @@ public:
 		glDeleteBuffers(1, &pbo_);
 		(usage_ == GL_STREAM_DRAW ? g_w_total_size : g_r_total_size)	-= size_;
 		(usage_ == GL_STREAM_DRAW ? g_w_total_count : g_r_total_count)	--;
-	}
-
-	void* map()
-	{
-		if(data_ != nullptr)
-			return data_;
-		
-		caspar::timer timer;
-
-		GL(glBindBuffer(target_, pbo_));
-		if(usage_ == GL_STREAM_DRAW)			
-			GL(glBufferData(target_, size_, NULL, usage_));	// Notify OpenGL that we don't care about previous data.
-		
-		auto result = GL2(glMapBuffer(target_, usage_ == GL_STREAM_DRAW ? GL_WRITE_ONLY : GL_READ_ONLY));
-		data_ = (uint8_t*) result;
-
-		if(timer.elapsed() > 0.02)
-			CASPAR_LOG(warning) << L"[buffer] Performance warning. Buffer mapping blocked: " << timer.elapsed();
-
-		GL(glBindBuffer(target_, 0));
-		if(!data_)
-			CASPAR_THROW_EXCEPTION(invalid_operation() << msg_info("Failed to map target OpenGL Pixel Buffer Object."));
-
-		return data_;
-	}
-	
-	void unmap()
-	{
-		if(data_ == nullptr)
-			return;
-		
-		GL(glBindBuffer(target_, pbo_));
-		GL(glUnmapBuffer(target_));	
-		if(usage_ == GL_STREAM_READ)			
-			GL(glBufferData(target_, size_, NULL, usage_));	// Notify OpenGL that we don't care about previous data.
-		data_ = nullptr;	
-		GL(glBindBuffer(target_, 0));
 	}
 
 	void bind()
@@ -144,9 +101,7 @@ buffer::buffer(buffer&& other) : impl_(std::move(other.impl_)){}
 buffer::~buffer(){}
 buffer& buffer::operator=(buffer&& other){impl_ = std::move(other.impl_); return *this;}
 uint8_t* buffer::data(){return impl_->data_;}
-void buffer::map(){impl_->map();}
-void buffer::unmap(){impl_->unmap();}
-void buffer::bind() const{impl_->bind();}
+void buffer::bind() const { impl_->bind(); }
 void buffer::unbind() const{impl_->unbind();}
 std::size_t buffer::size() const { return impl_->size_; }
 int buffer::id() const {return impl_->pbo_;}

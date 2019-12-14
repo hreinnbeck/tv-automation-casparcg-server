@@ -51,18 +51,21 @@ struct mutable_frame::impl : boost::noncopyable
 	const void*									tag_;
 	core::frame_geometry						geometry_				= frame_geometry::get_default();
 	caspar::timer								since_created_timer_;
+	mutable_frame::commit_t						commit_;
 
 	impl(
 			std::vector<array<std::uint8_t>> buffers,
 			mutable_audio_buffer audio_data,
 			const void* tag,
 			const core::pixel_format_desc& desc,
-			const core::audio_channel_layout& channel_layout)
+			const core::audio_channel_layout& channel_layout,
+			commit_t commit)
 		: buffers_(std::move(buffers))
 		, audio_data_(std::move(audio_data))
 		, desc_(desc)
 		, channel_layout_(channel_layout)
 		, tag_(tag)
+		, commit_(std::move(commit))
 	{
 		for (auto& buffer : buffers_)
 			if(!buffer.data())
@@ -75,8 +78,9 @@ mutable_frame::mutable_frame(
 		mutable_audio_buffer audio_data,
 		const void* tag,
 		const core::pixel_format_desc& desc,
-		const core::audio_channel_layout& channel_layout)
-	: impl_(new impl(std::move(image_buffers), std::move(audio_data), tag, desc, channel_layout)){}
+		const core::audio_channel_layout& channel_layout,
+		commit_t commit)
+	: impl_(new impl(std::move(image_buffers), std::move(audio_data), tag, desc, channel_layout, commit)){}
 mutable_frame::~mutable_frame(){}
 mutable_frame::mutable_frame(mutable_frame&& other) : impl_(std::move(other.impl_)){}
 mutable_frame& mutable_frame::operator=(mutable_frame&& other)
@@ -117,6 +121,7 @@ struct const_frame::impl : boost::noncopyable
 	bool																should_record_age_;
 	mutable tbb::atomic<int64_t>										recorded_age_;
 	std::shared_future<array<const std::uint8_t>>						key_only_on_demand_;
+	boost::any															opaque_;
 
 	impl(const void* tag)
 		: audio_data_(0, 0, true, 0)
@@ -183,14 +188,18 @@ struct const_frame::impl : boost::noncopyable
 		, since_created_timer_(other.since_created())
 		, should_record_age_(true)
 	{
+		if (other.impl_->commit_) {
+			opaque_ = other.impl_->commit_(other);
+		} else {
+			for (std::size_t n = 0; n < desc_.planes.size(); ++n)
+			{
+				future_buffers_.push_back(make_ready_future<array<const std::uint8_t>>(std::move(other.image_data(n))).share());
+			}
+		}
+
 		spl::shared_ptr<mutable_audio_buffer> shared_audio_data(new mutable_audio_buffer(std::move(other.audio_data())));
 		// pointer returned by vector::data() should be the same after move, but just to be safe.
 		audio_data_ = audio_buffer(shared_audio_data->data(), shared_audio_data->size(), true, std::move(shared_audio_data));
-
-		for (std::size_t n = 0; n < desc_.planes.size(); ++n)
-		{
-			future_buffers_.push_back(make_ready_future<array<const std::uint8_t>>(std::move(other.image_data(n))).share());
-		}
 
 		recorded_age_ = -1;
 	}
@@ -270,6 +279,7 @@ std::size_t const_frame::height()const{return impl_->height();}
 std::size_t const_frame::size()const{return impl_->size();}
 const void* const_frame::stream_tag()const{return impl_->tag_;}
 const frame_geometry& const_frame::geometry() const { return impl_->geometry_; }
+const boost::any* const_frame::opaque() const { return &impl_->opaque_; }
 const_frame const_frame::with_geometry(const frame_geometry& g) const
 {
 	const_frame copy(*impl_);

@@ -26,6 +26,7 @@
 #include "server.h"
 
 #include <accelerator/accelerator.h>
+#include <accelerator/ogl/util/device.h>
 
 #include <common/env.h>
 #include <common/except.h>
@@ -127,6 +128,7 @@ struct server::impl : boost::noncopyable
     std::shared_ptr<boost::asio::io_service>               io_service_ = create_running_io_service();
     spl::shared_ptr<monitor::subject>                      monitor_subject_;
     spl::shared_ptr<monitor::subject>                      diag_subject_ = core::diagnostics::get_or_create_subject();
+	video_format_repository								   video_format_repository_;
     accelerator::accelerator                               accelerator_;
     spl::shared_ptr<help_repository>                       help_repo_;
     std::shared_ptr<amcp::amcp_command_repository>         amcp_command_repo_;
@@ -149,7 +151,8 @@ struct server::impl : boost::noncopyable
     std::promise<bool>&                                    shutdown_server_now_;
 
     explicit impl(std::promise<bool>& shutdown_server_now)
-        : accelerator_(env::properties().get(L"configuration.accelerator", L"auto"))
+        : video_format_repository_()
+		, accelerator_(env::properties().get(L"configuration.accelerator", L"auto"), video_format_repository_)
         , media_info_repo_(create_in_memory_media_info_repository())
         , producer_registry_(spl::make_shared<core::frame_producer_registry>(help_repo_))
         , consumer_registry_(spl::make_shared<core::frame_consumer_registry>(help_repo_))
@@ -175,11 +178,16 @@ struct server::impl : boost::noncopyable
     {
         running_ = true;
 
+		setup_video_modes(env::properties());
+		CASPAR_LOG(info) << L"Initialized video modes.";
+
         setup_audio_config(env::properties());
         CASPAR_LOG(info) << L"Initialized audio config.";
 
         auto xml_channels = setup_channels(env::properties());
         CASPAR_LOG(info) << L"Initialized channels.";
+
+		preallocate_buffers(env::properties());
 
         setup_thumbnail_generation(env::properties());
         CASPAR_LOG(info) << L"Initialized thumbnail generator.";
@@ -228,6 +236,106 @@ struct server::impl : boost::noncopyable
         core::diagnostics::osd::shutdown();
     }
 
+	void setup_video_modes(const boost::property_tree::wptree& pt)
+	{
+		using boost::property_tree::wptree;
+
+		auto videomodes_config = pt.get_child_optional(L"configuration.video-modes");
+		if (videomodes_config) {
+			for (auto& xml_channel : pt | witerate_children(L"configuration.video-modes") | welement_context_iteration)
+			{
+				ptree_verify_element_name(xml_channel, L"video-mode");
+
+				const std::wstring id = xml_channel.second.get(L"id", L"");
+				if (id == L"")
+					CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Invalid video-mode id: " + id));
+
+				const int width = xml_channel.second.get<int>(L"width", 0);
+				const int height = xml_channel.second.get<int>(L"height", 0);
+				if (width == 0 || height == 0)
+					CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Invalid dimensions: " + boost::lexical_cast<std::wstring>(width) + L"x" + boost::lexical_cast<std::wstring>(height)));
+
+				const int timescale = xml_channel.second.get<int>(L"time-scale", 60000);
+				const int duration = xml_channel.second.get<int>(L"duration", 1000);
+				if (timescale == 0 || duration == 0)
+					CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Invalid framerate: " + boost::lexical_cast<std::wstring>(timescale) + L"/" + boost::lexical_cast<std::wstring>(duration)));
+
+				std::vector<int> cadence;
+				int cadence_sum = 0;
+
+				const std::wstring cadence_str = xml_channel.second.get(L"cadence", L"");
+				std::set<std::wstring> cadence_parts;
+				boost::split(cadence_parts, cadence_str, boost::is_any_of(L", "));
+
+				for (auto& cad : cadence_parts)
+				{
+					if (cad == L"")
+						continue;
+
+					const int c = std::stoi(cad);
+					cadence.push_back(c);
+					cadence_sum += c;
+				}
+
+				if (cadence.size() == 0)
+				{
+					const int c = static_cast<int>(48000 / (static_cast<double>(timescale) / duration) + 0.5);
+					cadence.push_back(c);
+					cadence_sum += c;
+				}
+
+				const auto new_format = video_format_desc(video_format::custom, width, height, width, height, field_mode::progressive, timescale, duration, id, cadence); // TODO - fields, cadence
+	//			if (cadence_sum != new_format.audio_sample_rate)
+	//				CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Audio cadence sum doesn't match sample rate. "));
+
+				const auto existing = video_format_repository_.find(id);
+				if (existing.format != video_format::invalid)
+					CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Video-mode already exists: " + id));
+
+				video_format_repository_.store(new_format);
+			}
+		}
+	}
+
+	void preallocate_buffers(const boost::property_tree::wptree& pt)
+	{
+		using boost::property_tree::wptree;
+
+		auto device = accelerator_.get_ogl_device();
+		auto prealloc_config = pt.get_child_optional(L"configuration.opengl.preallocate");
+		if (device && prealloc_config) {
+			std::vector<caspar::array<uint8_t>> buffers;
+			std::vector<std::shared_ptr<accelerator::ogl::texture>> textures;
+
+			int allocation_count = 0;
+
+			for (auto& xml_preallocate : pt | witerate_children(L"configuration.opengl.preallocate") | welement_context_iteration) {
+				const auto attrs = xml_preallocate.second.get_child(L"<xmlattr>");
+
+				const auto width = attrs.get(L"width", 0);
+				const auto height = attrs.get(L"height", 0);
+				const auto depth = attrs.get(L"depth", 0);
+				const auto count = attrs.get(L"count", 0);
+				const auto mipmapped = attrs.get(L"mipmapped", false);
+
+				if (width == 0 || height == 0 || depth == 0) {
+					CASPAR_LOG(warning) << L"Invalid preallocated buffer size: " << width << L"x" << height << L"(" << depth << L")";
+				} else if (count > 0) {
+					device->allocate_buffers(count, width, height, depth, mipmapped, false);
+					allocation_count += count;
+				}
+			}
+
+			// TODO - optional/configurable?
+			for (auto& ch : channels_) {
+				device->allocate_buffers(10, ch->video_format_desc().width, ch->video_format_desc().height, 4, false, true);
+				allocation_count += 10;
+			}
+
+			CASPAR_LOG(info) << L"Preallocated " << allocation_count << L" buffers";
+		}
+	}
+
     void setup_audio_config(const boost::property_tree::wptree& pt)
     {
         using boost::property_tree::wptree;
@@ -266,7 +374,7 @@ struct server::impl : boost::noncopyable
             ptree_verify_element_name(xml_channel, L"channel");
 
             auto format_desc_str = xml_channel.second.get(L"video-mode", L"PAL");
-            auto format_desc     = video_format_desc(format_desc_str);
+            auto format_desc     = video_format_repository_.find(format_desc_str);
             if (format_desc.format == video_format::invalid)
                 CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Invalid video-mode: " + format_desc_str));
 
@@ -310,7 +418,7 @@ struct server::impl : boost::noncopyable
             auto channel_id = static_cast<int>(channels_.size() + 1);
             channels_.push_back(spl::make_shared<video_channel>(
                 channel_id,
-                core::video_format_desc(core::video_format::x576p2500),
+                video_format_repository_.find_format(core::video_format::x576p2500),
                 *core::audio_channel_layout_repository::get_default()->get_layout(L"stereo"),
                 accelerator_.create_image_mixer(channel_id)));
             channels_.back()->monitor_output().attach_parent(monitor_subject_);
@@ -373,7 +481,8 @@ struct server::impl : boost::noncopyable
             env::thumbnail_folder(),
             pt.get(L"configuration.thumbnails.width", 256),
             pt.get(L"configuration.thumbnails.height", 144),
-            core::video_format_desc(pt.get(L"configuration.thumbnails.video-mode", L"720p2500")),
+			video_format_repository_,
+            video_format_repository_.find(pt.get(L"configuration.thumbnails.video-mode", L"720p2500")),
             accelerator_.create_image_mixer(0),
             pt.get(L"configuration.thumbnails.generate-delay-millis", 2000),
             &image::write_cropped_png,
@@ -464,6 +573,7 @@ struct server::impl : boost::noncopyable
         auto ctx = std::make_shared<amcp::amcp_command_static_context>(thumbnail_generator_,
                                                                        media_info_repo_,
                                                                        system_info_provider_repo_,
+                                                                       video_format_repository_,
                                                                        cg_registry_,
                                                                        help_repo_,
                                                                        producer_registry_,
@@ -514,11 +624,11 @@ struct server::impl : boost::noncopyable
                                                            spl::make_shared_ptr(amcp_command_scheduler_));
         else if (boost::iequals(name, L"CII"))
             return wrap_legacy_protocol(
-                "\r\n", spl::make_shared<cii::CIIProtocolStrategy>(channels_, cg_registry_, producer_registry_));
+                "\r\n", spl::make_shared<cii::CIIProtocolStrategy>(video_format_repository_, channels_, cg_registry_, producer_registry_));
         else if (boost::iequals(name, L"CLOCK"))
             return spl::make_shared<to_unicode_adapter_factory>(
                 "ISO-8859-1",
-                spl::make_shared<CLK::clk_protocol_strategy_factory>(channels_, cg_registry_, producer_registry_));
+                spl::make_shared<CLK::clk_protocol_strategy_factory>(video_format_repository_, channels_, cg_registry_, producer_registry_));
         else if (boost::iequals(name, L"LOG"))
             return spl::make_shared<protocol::log::tcp_logger_protocol_strategy_factory>();
 

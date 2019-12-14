@@ -26,6 +26,12 @@
 
 #include <common/memory.h>
 
+#ifdef WIN32
+#include <memory>
+FORWARD3(caspar, accelerator, d3d, class d3d_texture2d);
+#endif
+
+
 namespace caspar { namespace core {
 			
 class frame_factory : boost::noncopyable
@@ -46,6 +52,11 @@ public:
 			const void* video_stream_tag,
 			const pixel_format_desc& desc,
 			const core::audio_channel_layout& channel_layout) = 0;
+			
+#ifdef WIN32
+    virtual class mutable_frame import_d3d_texture(const void* video_stream_tag,
+                                                   const std::shared_ptr<accelerator::d3d::d3d_texture2d>& d3d_texture) = 0;
+#endif
 
 	// Properties
 

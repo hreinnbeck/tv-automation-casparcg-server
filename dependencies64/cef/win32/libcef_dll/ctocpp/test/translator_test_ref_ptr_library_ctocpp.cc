@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=adb8d1b6439ca458cb11aef7abda5c962988ca29$
+// $hash=c2de43f5e8d586dbb6c8635d814241af93cf0039$
 //
 
 #include "libcef_dll/ctocpp/test/translator_test_ref_ptr_library_ctocpp.h"
@@ -18,8 +18,9 @@
 
 // STATIC METHODS - Body may be edited by hand.
 
-CefRefPtr<CefTranslatorTestRefPtrLibrary>
-CefTranslatorTestRefPtrLibrary::Create(int value) {
+NO_SANITIZE("cfi-icall")
+CefRefPtr<CefTranslatorTestRefPtrLibrary> CefTranslatorTestRefPtrLibrary::
+    Create(int value) {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
 
   // Execute
@@ -32,7 +33,7 @@ CefTranslatorTestRefPtrLibrary::Create(int value) {
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
-int CefTranslatorTestRefPtrLibraryCToCpp::GetValue() {
+NO_SANITIZE("cfi-icall") int CefTranslatorTestRefPtrLibraryCToCpp::GetValue() {
   cef_translator_test_ref_ptr_library_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_value))
     return 0;
@@ -46,6 +47,7 @@ int CefTranslatorTestRefPtrLibraryCToCpp::GetValue() {
   return _retval;
 }
 
+NO_SANITIZE("cfi-icall")
 void CefTranslatorTestRefPtrLibraryCToCpp::SetValue(int value) {
   cef_translator_test_ref_ptr_library_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, set_value))

@@ -66,6 +66,10 @@ list(APPEND CEF_COMPILER_DEFINES
   )
 
 
+# Configure use of the sandbox.
+option(USE_SANDBOX "Enable or disable use of the sandbox." ON)
+
+
 #
 # Linux configuration.
 #
@@ -86,6 +90,8 @@ if(OS_LINUX)
     -Werror                         # Treat warnings as errors
     -Wno-missing-field-initializers # Don't warn about missing field initializers
     -Wno-unused-parameter           # Don't warn about unused parameters
+    -Wno-error=comment              # Don't warn about code in comments
+    -Wno-comment                    # Don't warn about code in comments
     )
   list(APPEND CEF_C_COMPILER_FLAGS
     -std=c99                        # Use the C99 language standard
@@ -197,9 +203,12 @@ if(OS_LINUX)
   set(CEF_BINARY_FILES
     chrome-sandbox
     libcef.so
+    libEGL.so
+    libGLESv2.so
     natives_blob.bin
     snapshot_blob.bin
     v8_context_snapshot.bin
+    swiftshader
     )
 
   # List of CEF resource files.
@@ -212,6 +221,12 @@ if(OS_LINUX)
     icudtl.dat
     locales
     )
+
+  if(USE_SANDBOX)
+    list(APPEND CEF_COMPILER_DEFINES
+      CEF_USE_SANDBOX   # Used by apps to test if the sandbox is enabled
+      )
+  endif()
 endif()
 
 
@@ -309,9 +324,15 @@ if(OS_MACOSX)
   set(CEF_BINARY_DIR_DEBUG    "${_CEF_ROOT}/Debug")
   set(CEF_BINARY_DIR_RELEASE  "${_CEF_ROOT}/Release")
 
-  # CEF library paths.
-  set(CEF_LIB_DEBUG   "${CEF_BINARY_DIR_DEBUG}/Chromium Embedded Framework.framework/Chromium Embedded Framework")
-  set(CEF_LIB_RELEASE "${CEF_BINARY_DIR_RELEASE}/Chromium Embedded Framework.framework/Chromium Embedded Framework")
+  if(USE_SANDBOX)
+    list(APPEND CEF_COMPILER_DEFINES
+      CEF_USE_SANDBOX   # Used by apps to test if the sandbox is enabled
+      )
+
+    # CEF sandbox library paths.
+    set(CEF_SANDBOX_LIB_DEBUG "${CEF_BINARY_DIR_DEBUG}/cef_sandbox.a")
+    set(CEF_SANDBOX_LIB_RELEASE "${CEF_BINARY_DIR_RELEASE}/cef_sandbox.a")
+  endif()
 endif()
 
 
@@ -328,15 +349,18 @@ if(OS_WINDOWS)
     set(CMAKE_CXX_FLAGS_RELEASE "")
   endif()
 
-  # Configure use of the sandbox.
-  option(USE_SANDBOX "Enable or disable use of the sandbox." ON)
   if(USE_SANDBOX)
     # Check if the current MSVC version is compatible with the cef_sandbox.lib
-    # static library.
+    # static library. For a list of all version numbers see
+    # https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B#Internal_version_numbering
     list(APPEND supported_msvc_versions
-      1900  # VS2015
-      1910  # VS2017 <= 15.2
-      1911  # VS2017 >= 15.3
+      1900  # VS2015 and updates 1, 2, & 3
+      1910  # VS2017 version 15.1 & 15.2
+      1911  # VS2017 version 15.3 & 15.4
+      1912  # VS2017 version 15.5
+      1913  # VS2017 version 15.6
+      1914  # VS2017 version 15.7
+      1915  # VS2017 version 15.8
       )
     list(FIND supported_msvc_versions ${MSVC_VERSION} _index)
     if (${_index} EQUAL -1)
@@ -347,6 +371,13 @@ if(OS_WINDOWS)
 
   # Consumers who run into LNK4099 warnings can pass /Z7 instead (see issue #385).
   set(CEF_DEBUG_INFO_FLAG "/Zi" CACHE STRING "Optional flag specifying specific /Z flag to use")
+
+  # Consumers using different runtime types may want to pass different flags
+  set(CEF_RUNTIME_LIBRARY_FLAG "/MT" CACHE STRING "Optional flag specifying which runtime to use")
+  if (CEF_RUNTIME_LIBRARY_FLAG)
+    list(APPEND CEF_COMPILER_FLAGS_DEBUG ${CEF_RUNTIME_LIBRARY_FLAG}d)
+    list(APPEND CEF_COMPILER_FLAGS_RELEASE ${CEF_RUNTIME_LIBRARY_FLAG})
+  endif()
 
   # Platform-specific compiler/linker flags.
   set(CEF_LIBTYPE STATIC)
@@ -367,12 +398,10 @@ if(OS_WINDOWS)
     ${CEF_DEBUG_INFO_FLAG}
     )
   list(APPEND CEF_COMPILER_FLAGS_DEBUG
-    /MTd          # Multithreaded debug runtime
     /RTC1         # Disable optimizations
     /Od           # Enable basic run-time checks
     )
   list(APPEND CEF_COMPILER_FLAGS_RELEASE
-    /MT           # Multithreaded release runtime
     /O2           # Optimize for maximum speed
     /Ob2          # Inline any suitable function
     /GF           # Enable string pooling
@@ -450,6 +479,7 @@ if(OS_WINDOWS)
       dbghelp.lib
       psapi.lib
       version.lib
+      wbemuuid.lib
       winmm.lib
       )
 

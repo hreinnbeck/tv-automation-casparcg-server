@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=f8e375a0bb12a3664942be7069d81472233024d4$
+// $hash=c315ce672ba7e9bc903cb9eb6927fa9efd8187ba$
 //
 
 #include "libcef_dll/ctocpp/stream_reader_ctocpp.h"
@@ -17,6 +17,7 @@
 
 // STATIC METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefStreamReader> CefStreamReader::CreateForFile(
     const CefString& fileName) {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
@@ -34,6 +35,7 @@ CefRefPtr<CefStreamReader> CefStreamReader::CreateForFile(
   return CefStreamReaderCToCpp::Wrap(_retval);
 }
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefStreamReader> CefStreamReader::CreateForData(void* data,
                                                           size_t size) {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
@@ -50,6 +52,7 @@ CefRefPtr<CefStreamReader> CefStreamReader::CreateForData(void* data,
   return CefStreamReaderCToCpp::Wrap(_retval);
 }
 
+NO_SANITIZE("cfi-icall")
 CefRefPtr<CefStreamReader> CefStreamReader::CreateForHandler(
     CefRefPtr<CefReadHandler> handler) {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
@@ -69,6 +72,7 @@ CefRefPtr<CefStreamReader> CefStreamReader::CreateForHandler(
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 size_t CefStreamReaderCToCpp::Read(void* ptr, size_t size, size_t n) {
   cef_stream_reader_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, read))
@@ -88,6 +92,7 @@ size_t CefStreamReaderCToCpp::Read(void* ptr, size_t size, size_t n) {
   return _retval;
 }
 
+NO_SANITIZE("cfi-icall")
 int CefStreamReaderCToCpp::Seek(int64 offset, int whence) {
   cef_stream_reader_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, seek))
@@ -102,7 +107,7 @@ int CefStreamReaderCToCpp::Seek(int64 offset, int whence) {
   return _retval;
 }
 
-int64 CefStreamReaderCToCpp::Tell() {
+NO_SANITIZE("cfi-icall") int64 CefStreamReaderCToCpp::Tell() {
   cef_stream_reader_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, tell))
     return 0;
@@ -116,7 +121,7 @@ int64 CefStreamReaderCToCpp::Tell() {
   return _retval;
 }
 
-int CefStreamReaderCToCpp::Eof() {
+NO_SANITIZE("cfi-icall") int CefStreamReaderCToCpp::Eof() {
   cef_stream_reader_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, eof))
     return 0;
@@ -130,7 +135,7 @@ int CefStreamReaderCToCpp::Eof() {
   return _retval;
 }
 
-bool CefStreamReaderCToCpp::MayBlock() {
+NO_SANITIZE("cfi-icall") bool CefStreamReaderCToCpp::MayBlock() {
   cef_stream_reader_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, may_block))
     return false;

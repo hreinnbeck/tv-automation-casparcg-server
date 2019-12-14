@@ -46,15 +46,22 @@ const std::wstring CIIProtocolStrategy::MessageDelimiter = L"\r\n";
 const wchar_t CIIProtocolStrategy::TokenDelimiter = L'\\';
 
 CIIProtocolStrategy::CIIProtocolStrategy(
+		const core::video_format_repository& format_repository,
 		const std::vector<spl::shared_ptr<core::video_channel>>& channels, 
 		const spl::shared_ptr<core::cg_producer_registry>& cg_registry,
 		const spl::shared_ptr<const core::frame_producer_registry>& producer_registry)
 	: executor_(L"CIIProtocolStrategy")
 	, pChannel_(channels.at(0))
+	, format_repository_(format_repository)
 	, channels_(channels)
 	, cg_registry_(cg_registry)
 	, producer_registry_(producer_registry)
 {
+}
+
+video_format_desc CIIProtocolStrategy::FindFormat(const std::wstring& id) const
+{
+	return format_repository_.find(id);
 }
 
 //The paser method expects message to be complete messages with the delimiter stripped away.

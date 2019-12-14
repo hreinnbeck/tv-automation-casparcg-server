@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Marshall A. Greenblatt. All rights reserved.
+// Copyright (c) 2019 Marshall A. Greenblatt. All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
 // modification, are permitted provided that the following conditions are
@@ -33,7 +33,7 @@
 // by hand. See the translator.README.txt file in the tools directory for
 // more information.
 //
-// $hash=a4831deeb05bc0a022c1a0ee6f1c484b338c741c$
+// $hash=faac9d17d7efae3a72c4cc44474071027596c843$
 //
 
 #ifndef CEF_INCLUDE_CAPI_CEF_BROWSER_CAPI_H_
@@ -570,6 +570,13 @@ typedef struct _cef_browser_host_t {
   ///
   void(CEF_CALLBACK* invalidate)(struct _cef_browser_host_t* self,
                                  cef_paint_element_type_t type);
+
+  ///
+  // Issue a BeginFrame request to Chromium.  Only valid when
+  // cef_window_tInfo::external_begin_frame_enabled is set to true (1).
+  ///
+  void(CEF_CALLBACK* send_external_begin_frame)(
+      struct _cef_browser_host_t* self);
 
   ///
   // Send a key event to the browser.

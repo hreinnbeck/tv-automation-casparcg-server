@@ -44,6 +44,7 @@ public:
 	monitor::subject&					monitor_output() override;
 	variable&							get_variable(const std::wstring& name) override;
 	const std::vector<std::wstring>&	get_variables() const override;
+	std::future<std::wstring> call(const std::vector<std::wstring>& params) override;
 
 	binding<std::shared_ptr<frame_producer>>& producer();
 private:

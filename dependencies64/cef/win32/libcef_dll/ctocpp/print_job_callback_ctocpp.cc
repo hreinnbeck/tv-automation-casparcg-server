@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,14 +9,14 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=32dd6c84d31a8affb55a3ceff6d242cca11db831$
+// $hash=0435585cf71c7cb630cdf8d4f14e5ac8f6f999f2$
 //
 
 #include "libcef_dll/ctocpp/print_job_callback_ctocpp.h"
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
-void CefPrintJobCallbackCToCpp::Continue() {
+NO_SANITIZE("cfi-icall") void CefPrintJobCallbackCToCpp::Continue() {
   cef_print_job_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, cont))
     return;

@@ -116,10 +116,12 @@ class decklink_producer
     std::vector<int>                     audio_cadence_ = in_format_desc_.audio_cadence;
     boost::circular_buffer<size_t>       sync_buffer_{audio_cadence_.size()};
     spl::shared_ptr<core::frame_factory> frame_factory_;
+	const core::video_format_repository format_repository_;
     core::audio_channel_layout           channel_layout_;
     ffmpeg::frame_muxer                  muxer_{in_format_desc_.framerate,
                                {ffmpeg::create_input_pad(in_format_desc_, channel_layout_.num_channels)},
                                frame_factory_,
+							   format_repository_, // TODO - will this work?
                                out_format_desc_,
                                channel_layout_,
                                filter_,
@@ -135,7 +137,8 @@ class decklink_producer
     std::exception_ptr exception_;
 
   public:
-    decklink_producer(const core::video_format_desc&              in_format_desc,
+    decklink_producer(const core::video_format_repository         format_repository, 
+                      const core::video_format_desc&              in_format_desc,
                       int                                         device_index,
                       const spl::shared_ptr<core::frame_factory>& frame_factory,
                       const core::video_format_desc&              out_format_desc,
@@ -148,6 +151,7 @@ class decklink_producer
         , in_format_desc_(in_format_desc)
         , out_format_desc_(out_format_desc)
         , frame_factory_(frame_factory)
+		, format_repository_(format_repository)
         , channel_layout_(get_adjusted_channel_layout(channel_layout))
     {
         frame_buffer_.set_capacity(2);
@@ -385,7 +389,8 @@ class decklink_producer_proxy : public core::frame_producer_base
     executor                           executor_;
 
   public:
-    explicit decklink_producer_proxy(const core::video_format_desc&              in_format_desc,
+    explicit decklink_producer_proxy(const core::video_format_repository&        format_repository, 
+                                     const core::video_format_desc&              in_format_desc,
                                      const spl::shared_ptr<core::frame_factory>& frame_factory,
                                      const core::video_format_desc&              out_format_desc,
                                      const core::audio_channel_layout&           channel_layout,
@@ -401,7 +406,7 @@ class decklink_producer_proxy : public core::frame_producer_base
             core::diagnostics::call_context::for_thread() = ctx;
             com_initialize();
             producer_.reset(new decklink_producer(
-                in_format_desc, device_index, frame_factory, out_format_desc, channel_layout, filter_str, freeze_on_lost));
+				format_repository, in_format_desc, device_index, frame_factory, out_format_desc, channel_layout, filter_str, freeze_on_lost));
         });
     }
 
@@ -487,7 +492,7 @@ spl::shared_ptr<core::frame_producer> create_producer(const core::frame_producer
 
     auto filter_str     = get_param(L"FILTER", params);
     auto length         = get_param(L"LENGTH", params, std::numeric_limits<uint32_t>::max());
-    auto in_format_desc = core::video_format_desc(get_param(L"FORMAT", params, L"INVALID"));
+    auto in_format_desc = dependencies.format_repository.find(get_param(L"FORMAT", params, L"INVALID"));
 
     if (in_format_desc.format == core::video_format::invalid)
         in_format_desc = dependencies.format_desc;
@@ -508,7 +513,8 @@ spl::shared_ptr<core::frame_producer> create_producer(const core::frame_producer
     boost::ireplace_all(filter_str, L"DEINTERLACE_LQ", L"SEPARATEFIELDS");
     boost::ireplace_all(filter_str, L"DEINTERLACE", L"YADIF=0:-1");
 
-    auto producer = spl::make_shared<decklink_producer_proxy>(in_format_desc,
+    auto producer = spl::make_shared<decklink_producer_proxy>(dependencies.format_repository, 
+                                                              in_format_desc,
                                                               dependencies.frame_factory,
                                                               dependencies.format_desc,
                                                               channel_layout,

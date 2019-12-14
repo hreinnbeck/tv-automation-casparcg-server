@@ -19,13 +19,14 @@ struct accelerator::impl
 	const std::wstring				path_;
 	tbb::mutex						mutex_;
 	std::shared_ptr<ogl::device>	ogl_device_;
+	const core::video_format_repository format_repository_;
 
-	impl(const std::wstring& path)
-		: path_(path)
+	impl(const std::wstring& path, const core::video_format_repository format_repository)
+		: path_(path), format_repository_(format_repository)
 	{
 	}
 
-	std::unique_ptr<core::image_mixer> create_image_mixer(int channel_id)
+	std::unique_ptr<core::image_mixer> create_image_mixer(const int channel_id)
 	{
 		try
 		{
@@ -36,11 +37,12 @@ struct accelerator::impl
 				if(!ogl_device_)
 					ogl_device_.reset(new ogl::device());
 
-				return std::unique_ptr<core::image_mixer>(new ogl::image_mixer(
+				return std::make_unique<ogl::image_mixer>(
 						spl::make_shared_ptr(ogl_device_),
 						env::properties().get(L"configuration.mixer.blend-modes", false),
 						env::properties().get(L"configuration.mixer.straight-alpha", false),
-						channel_id));
+						channel_id,
+						format_repository_.get_max_video_format_size());
 			}
 		}
 		catch(...)
@@ -48,12 +50,12 @@ struct accelerator::impl
 			if(path_ == L"gpu" || path_ == L"ogl")
 				CASPAR_LOG_CURRENT_EXCEPTION();
 		}
-		return std::unique_ptr<core::image_mixer>(new cpu::image_mixer(channel_id));
+		return std::make_unique<cpu::image_mixer>(channel_id);
 	}
 };
 
-accelerator::accelerator(const std::wstring& path)
-	: impl_(new impl(path))
+accelerator::accelerator(const std::wstring& path, const core::video_format_repository format_repository)
+	: impl_(new impl(path, format_repository))
 {
 }
 
@@ -61,7 +63,7 @@ accelerator::~accelerator()
 {
 }
 
-std::unique_ptr<core::image_mixer> accelerator::create_image_mixer(int channel_id)
+std::unique_ptr<core::image_mixer> accelerator::create_image_mixer(const int channel_id)
 {
 	return impl_->create_image_mixer(channel_id);
 }

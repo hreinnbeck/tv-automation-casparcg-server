@@ -67,32 +67,37 @@
 
 namespace caspar { namespace core { namespace text {
 
-struct rect
+struct atlas_rect
 {
+	int index;
 	int x;
 	int y;
 	int width;
 	int height;
 };
 
-class texture_atlas
+// How much each char stored in the atlas is padded by. This is to ensure that edges arent clipped during rendering, and that no bleed from adjacent chars occurs
+#define CHAR_PADDING 5
+
+class texture_atlas_set
 {
 public:
-	texture_atlas(const size_t w, const size_t h, const size_t d);
+	texture_atlas_set(const size_t w, const size_t h, const size_t d);
 
-	rect get_region(int width, int height) const;
-	void set_region(const size_t x, const size_t y, const size_t width, const size_t height, const unsigned char *data, const size_t stride, const color<double>& col);
-	void clear();
+	atlas_rect get_region(int width, int height) const;
+	void set_region(const atlas_rect rect, const size_t width, const size_t height, const unsigned char *data, const size_t stride, const color<double>& col);
 
 	size_t depth() const;
 	size_t width() const;
 	size_t height() const;
 
-	const uint8_t* data() const;
+	size_t size() const;
+	const uint8_t* data(int index) const;
 
 private:
 	struct impl;
 	caspar::spl::shared_ptr<impl> impl_;
+
 };
 
 }}}

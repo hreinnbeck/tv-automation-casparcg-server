@@ -25,9 +25,12 @@ class frame_geometry;
 
 class mutable_frame final
 {
+	friend class const_frame;
+
 	mutable_frame(const mutable_frame&);
 	mutable_frame& operator=(const mutable_frame&);
 public:
+	using commit_t = std::function<boost::any(const mutable_frame&)>;
 
 	// Static Members
 
@@ -37,7 +40,8 @@ public:
 						mutable_audio_buffer audio_data,
 						const void* tag,
 						const pixel_format_desc& desc,
-						const audio_channel_layout& channel_layout);
+						const audio_channel_layout& channel_layout,
+						commit_t commit = nullptr);
 	~mutable_frame();
 
 	// Methods
@@ -114,6 +118,8 @@ public:
 	std::size_t width() const;
 	std::size_t height() const;
 	std::size_t size() const;
+
+	const boost::any* opaque() const;
 
 	const void* stream_tag() const;
 

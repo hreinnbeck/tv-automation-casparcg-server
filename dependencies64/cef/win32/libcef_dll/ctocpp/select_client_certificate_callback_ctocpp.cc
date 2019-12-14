@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=8601f86f6803d80f7f657e759bf1663f3ffe2365$
+// $hash=b8c542f7498b9579ac4d169f0b73660af2f959c5$
 //
 
 #include "libcef_dll/ctocpp/select_client_certificate_callback_ctocpp.h"
@@ -17,6 +17,7 @@
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 void CefSelectClientCertificateCallbackCToCpp::Select(
     CefRefPtr<CefX509Certificate> cert) {
   cef_select_client_certificate_callback_t* _struct = GetStruct();

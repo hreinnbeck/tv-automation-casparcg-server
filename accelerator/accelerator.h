@@ -4,6 +4,7 @@
 #include <common/memory.h>
 
 #include <core/fwd.h>
+#include <core/video_format.h>
 
 #include <boost/noncopyable.hpp>
 
@@ -12,7 +13,7 @@ namespace caspar { namespace accelerator {
 class accelerator : boost::noncopyable
 {
 public:
-	accelerator(const std::wstring& path);
+	accelerator(const std::wstring& path, const core::video_format_repository format_repository);
 	~accelerator();
 
 	std::unique_ptr<core::image_mixer> create_image_mixer(int channel_id);

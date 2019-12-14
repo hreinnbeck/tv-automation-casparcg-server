@@ -271,7 +271,8 @@ void create_timelines(
 		const spl::shared_ptr<core::scene::scene_producer>& scene,
 		const core::video_format_desc& format_desc,
 		core::scene::layer& layer,
-		const layer_ptr& psd_layer)
+		const layer_ptr& psd_layer,
+		const std::wstring& variable_prefix)
 {
 	auto timeline		= psd_layer->timeline_data();
 	auto start			= get_rational(timeline.get_child(L"timeScope.Strt"));
@@ -280,9 +281,26 @@ void create_timelines(
 	auto start_frame	= get_frame_number(format_desc, start);
 	auto end_frame		= get_frame_number(format_desc, end);
 
-	layer.hidden =
-			scene->timeline_frame() < boost::rational_cast<int64_t>(start_frame)
-			|| scene->timeline_frame() > boost::rational_cast<int64_t>(end_frame);
+	if (psd_layer->is_cg_producer()) {
+		// Play on first frame
+		core::binding<bool> play_condition = scene->timeline_frame() == boost::rational_cast<int64_t>(start_frame);
+		scene->add_task(std::move(play_condition), [=]
+		{
+			layer.producer.get()->call({ L"play()" });
+		});
+
+		// Stop on last frame
+		core::binding<bool> stop_condition = scene->timeline_frame() == boost::rational_cast<int64_t>(end_frame);
+		scene->add_task(std::move(stop_condition), [=]
+		{
+			layer.producer.get()->call({ L"stop()" });
+		});
+	} else {
+		layer.hidden =
+				scene->timeline_frame() < boost::rational_cast<int64_t>(start_frame)
+				|| scene->timeline_frame() > boost::rational_cast<int64_t>(end_frame);
+	}
+	
 
 	auto tracklist = timeline.get_child_optional(L"trackList");
 
@@ -351,12 +369,59 @@ void create_timelines(
 					scene->add_keyframe(opacity, opct, boost::rational_cast<int64_t>(frame));
 			}
 		}
+		else if (track_id == L"vectorMaskPositionTrack")
+		{
+			bool is_first = true;
+			for (auto& key : track.second.get_child(L"keyList"))
+			{
+				bool tween = key.second.get<std::wstring>(L"animInterpStyle") == L"Lnr ";
+				auto left = key.second.get<double>(L"animKey.Hrzn");
+				auto top = key.second.get<double>(L"animKey.Vrtc");
+				auto time = get_rational(key.second.get_child(L"time"));
+				auto frame = get_frame_number(format_desc, time);
+
+				auto vector_mask_x = scene->get_variable(variable_prefix + L"vector_mask_x").as<double>();
+				auto vector_mask_y = scene->get_variable(variable_prefix + L"vector_mask_y").as<double>();
+
+				if (is_first) { // Consider as initial value (rewind)
+					is_first = false;
+					vector_mask_x.set(left);
+					vector_mask_y.set(top);
+				}
+
+				if (tween)
+				{
+					scene->add_keyframe(vector_mask_x, left, boost::rational_cast<int64_t>(frame), L"linear");
+					scene->add_keyframe(vector_mask_y, top, boost::rational_cast<int64_t>(frame), L"linear");
+				} 
+				else
+				{
+					scene->add_keyframe(vector_mask_x, left, boost::rational_cast<int64_t>(frame));
+					scene->add_keyframe(vector_mask_y, top, boost::rational_cast<int64_t>(frame));
+				}
+			}
+		}
 		else
 		{
 			//ignore other kinds of tracks for now
 		}
 	}
 }
+
+template<typename T>
+core::binding<T>& find_or_create_scene_variable(spl::shared_ptr<core::scene::scene_producer> root, const std::wstring& name) {
+	caspar::core::variable* var;
+	try {
+		// TODO - is this safe?
+		var = &root->get_variable(name);
+	}
+	catch (...) {
+		return root->create_variable<T>(name, true);
+	}
+	return var->as<T>();
+}
+
+typedef std::vector<std::pair<std::wstring, std::wstring>> cg_mappings_t;
 
 spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::frame_producer_dependencies& dependencies, const std::vector<std::wstring>& params)
 {
@@ -372,6 +437,7 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 	auto root = spl::make_shared<core::scene::scene_producer>(L"psd", params.at(0), doc.width(), doc.height(), dependencies.format_desc);
 
 	std::vector<std::pair<std::wstring, spl::shared_ptr<core::text_producer>>> text_producers_by_layer_name;
+	std::vector<std::pair<spl::shared_ptr<core::frame_producer>, cg_mappings_t>> cg_producers_with_mappings;
 
 	std::stack<dependency_resolver> scene_stack;
 	scene_stack.push(dependency_resolver{ root, true });
@@ -379,6 +445,8 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 	auto layers_end = doc.layers().rend();
 	for(auto it = doc.layers().rbegin(); it != layers_end; ++it)
 	{
+		auto index = it - doc.layers().rbegin();
+		auto variable_prefix = L"layer." + boost::lexical_cast<std::wstring>(index) + L".";
 		auto& psd_layer = (*it);
 		auto& current = scene_stack.top();
 
@@ -394,7 +462,7 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 																																	dependencies.format_desc.time_scale*2,
 																																	dependencies.format_desc.duration,
 																																	dependencies.format_desc.name,
-																																	core::find_audio_cadence(dependencies.format_desc.framerate * 2) };
+																																	dependencies.format_repository.find_audio_cadence(dependencies.format_desc.framerate * 2) };
 
 			auto group = spl::make_shared<core::scene::scene_producer>(psd_layer->name(), L"layer group in " + params.at(0), doc.width(), doc.height(), format_desc);
 
@@ -403,7 +471,7 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 			scene_layer.hidden.set(!psd_layer->is_visible());
 
 			if (psd_layer->has_timeline())
-				create_timelines(root, dependencies.format_desc, scene_layer, psd_layer);
+				create_timelines(root, dependencies.format_desc, scene_layer, psd_layer, variable_prefix);
 
 			if (psd_layer->is_movable())
 				current.add(&scene_layer, psd_layer->tags(), false);
@@ -411,8 +479,11 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 			if (psd_layer->is_resizable())	//TODO: we could add support for resizable groups with vector masks
 				CASPAR_LOG(warning) << "Groups doesn't support the \"resizable\"-tag.";
 
-			if (psd_layer->is_placeholder())
+			if (psd_layer->is_producer())
 				CASPAR_LOG(warning) << "Groups doesn't support the \"producer\"-tag.";
+
+			if (psd_layer->is_cg_producer())
+				CASPAR_LOG(warning) << "Groups doesn't support the \"cg\"-tag.";
 
 			if (psd_layer->is_cornerpin())
 				CASPAR_LOG(warning) << "Groups doesn't support the \"cornerpin\"-tag.";
@@ -437,6 +508,10 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 			std::shared_ptr<core::frame_producer> layer_producer;
 			auto layer_name = psd_layer->name();
 
+			std::vector<std::pair<std::wstring, std::wstring>> cg_mappings;
+
+			auto crop_x_offset = root->create_variable<double>(variable_prefix + L"crop_x_offset", false);
+
 			if(psd_layer->is_text() && !psd_layer->is_static())
 			{
 				std::wstring str = psd_layer->text_data().get(L"EngineDict.Editor.Text", L"");
@@ -448,7 +523,8 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 				text_info.scale_y = psd_layer->scale().y / max_scale;
 				text_info.shear = 0;
 
-				auto text_producer = core::text_producer::create(dependencies.frame_factory, 0, 0, str, text_info, doc.width(), doc.height());
+				const bool croppable = psd_layer->mask().has_vector() && !psd_layer->mask().vector()->rect().empty();
+				auto text_producer = core::text_producer::create(dependencies.frame_factory, 0, 0, str, text_info, doc.width(), doc.height(), false, croppable);
 				//text_producer->pixel_constraints().width.set(psd_layer->size().width);
 				//text_producer->pixel_constraints().height.set(psd_layer->size().height);
 
@@ -466,14 +542,27 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 					scene_layer->anchor.x = text_producer.get()->pixel_constraints().width / 2.0;
 					break;
 				}
+				crop_x_offset.bind(scene_layer->anchor.x);
 
-				text_producers_by_layer_name.push_back(std::make_pair(layer_name, text_producer));
+				auto text_layer_exists = std::find_if(text_producers_by_layer_name.begin(), text_producers_by_layer_name.end(),
+					[layer_name](const std::pair<std::wstring, spl::shared_ptr<core::text_producer>>& element) { return element.first == layer_name; });
+
+				if (text_layer_exists == text_producers_by_layer_name.end())
+				{
+					text_producers_by_layer_name.push_back(std::make_pair(layer_name, text_producer));
+				}
+				else
+				{
+					CASPAR_LOG(warning) << "Found duplicate text layer name: " << layer_name;
+				}
 			}
 			else
 			{
-				if (psd_layer->is_placeholder())
+				if (psd_layer->is_producer() || psd_layer->is_cg_producer())
 				{
-					auto hotswap = std::make_shared<core::hotswap_producer>(psd_layer->bitmap()->width(), psd_layer->bitmap()->height());
+					auto width = psd_layer->bitmap() ? psd_layer->bitmap()->width() : doc.width();
+					auto height = psd_layer->bitmap() ? psd_layer->bitmap()->height() : doc.height();
+					auto hotswap = std::make_shared<core::hotswap_producer>(width, height);
 
 					if (psd_layer->is_explicit_dynamic())
 					{
@@ -483,14 +572,68 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 						});*/
 
 					}
-					else
-						hotswap->producer().set(dependencies.producer_registry->create_producer(dependencies, layer_name));
+					else {
+						auto producer = [&]
+						{
+							CASPAR_SCOPED_CONTEXT_MSG(" -> ");
+							auto adjusted_dependencies = dependencies;
+							auto& adjusted_format_desc = adjusted_dependencies.format_desc;
+
+							adjusted_format_desc.field_mode = core::field_mode::progressive;
+							adjusted_format_desc.fps *= adjusted_format_desc.field_count;
+							adjusted_format_desc.time_scale *= adjusted_format_desc.field_count;
+							adjusted_format_desc.framerate *= adjusted_format_desc.field_count;
+							adjusted_format_desc.field_count = 1;
+							adjusted_format_desc.audio_cadence = adjusted_dependencies.format_repository.find_audio_cadence(adjusted_format_desc.framerate);
+
+							auto producer_name = layer_name;
+							if (psd_layer->is_cg_producer()) {
+								std::wstringstream name_stream;
+								// TODO - how to allow json for html?
+
+								auto start_bracket = layer_name.find_first_of(L'(');
+								auto end_bracket = layer_name.find_first_of(L')');
+								if (start_bracket != std::wstring::npos && end_bracket > start_bracket) {
+									auto str = layer_name.substr(start_bracket + 1, end_bracket - start_bracket - 1);
+									producer_name = layer_name.substr(end_bracket + 1);
+									name_stream << L"[CG] " << producer_name;
+
+									std::vector<std::wstring> tokens;
+									boost::split(tokens, str, boost::is_any_of(L", "), boost::token_compress_on);
+
+									for (auto& token : tokens) {
+										auto ind = token.find_first_of(L'>');
+										if (ind == std::wstring::npos) {
+											cg_mappings.emplace_back(token, token);
+											name_stream << L" string " << token;
+										} else {
+											auto var_name = token.substr(ind + 1);
+											cg_mappings.emplace_back(token.substr(0, ind), var_name);
+											name_stream << L" string " << var_name;
+										}
+									}
+								} else {
+									name_stream << L"[CG] " << producer_name;
+								}
+								producer_name = name_stream.str();
+							}
+
+							return dependencies.producer_registry->create_producer(adjusted_dependencies, producer_name);
+						}();
+						hotswap->producer().set(producer);
+						
+						if (psd_layer->is_cg_producer() && producer != core::frame_producer::empty()) {
+							cg_producers_with_mappings.emplace_back(producer, cg_mappings);
+						}
+					}
 
 					layer_producer = hotswap;
 				}
 				else if(psd_layer->is_solid())
 				{
-					layer_producer = core::create_const_producer(core::create_color_frame(it->get(), dependencies.frame_factory, psd_layer->solid_color().to_uint32()), psd_layer->bitmap()->width(), psd_layer->bitmap()->height());
+					auto width = psd_layer->bitmap() ? psd_layer->bitmap()->width() : doc.width();
+					auto height = psd_layer->bitmap() ? psd_layer->bitmap()->height() : doc.height();
+					layer_producer = core::create_const_producer(core::create_color_frame(it->get(), dependencies.frame_factory, psd_layer->solid_color().to_uint32()), width, height);
 				}
 				else if(psd_layer->bitmap())
 				{
@@ -511,7 +654,7 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 				if(layer_producer)
 					scene_layer = &current.scene()->create_layer(spl::make_shared_ptr(layer_producer), psd_layer->location().x, psd_layer->location().y, layer_name);
 			}
-
+			
 			if (layer_producer && scene_layer)
 			{
 				scene_layer->adjustments.opacity.set(psd_layer->opacity() / 255.0);
@@ -521,7 +664,7 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 
 				if (psd_layer->mask().has_vector()) {
 
-					if (psd_layer->is_placeholder() && psd_layer->is_cornerpin()) {
+					if (psd_layer->is_producer() && psd_layer->is_cornerpin()) {
 
 						psd::point<int> layer_pos{ static_cast<int>(scene_layer->position.x.get()), static_cast<int>(scene_layer->position.y.get()) };
 						auto unbind_and_set = [&layer_pos](caspar::core::scene::coord& c, const caspar::psd::point<int>& pt) {
@@ -553,33 +696,37 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 						//this rectangle is in document-coordinates
 						auto mask = psd_layer->mask().vector()->rect();
 
+						auto vector_mask_x = root->create_variable<double>(variable_prefix + L"vector_mask_x", false);
+						auto vector_mask_y = root->create_variable<double>(variable_prefix + L"vector_mask_y", false);
+						vector_mask_x.set(mask.location.x);
+						vector_mask_y.set(mask.location.y);
+
 						//remap to layer-coordinates
-						auto left = static_cast<double>(mask.location.x) - scene_layer->position.x.get();
+
+						auto left = crop_x_offset + vector_mask_x - scene_layer->position.x;
 						auto right = left + static_cast<double>(mask.size.width);
-						auto top = static_cast<double>(mask.location.y) - scene_layer->position.y.get();
-						auto bottom = top + static_cast<double>(mask.size.height);
+						scene_layer->crop.upper_left.x.bind(left);
+						scene_layer->crop.lower_right.x.bind(right);
+						
+						auto upper = vector_mask_y - scene_layer->position.y;
+						if (psd_layer->is_text()) {
+							// Text uses 0 to be baseline, not top corner
+							upper = upper + layer_producer->pixel_constraints().height;
+						}
+						auto lower = upper + static_cast<double>(mask.size.height);
 
-						scene_layer->crop.upper_left.x.unbind();
-						scene_layer->crop.upper_left.x.set(left);
-
-						scene_layer->crop.upper_left.y.unbind();
-						scene_layer->crop.upper_left.y.set(top);
-
-						scene_layer->crop.lower_right.x.unbind();
-						scene_layer->crop.lower_right.x.set(right);
-
-						scene_layer->crop.lower_right.y.unbind();
-						scene_layer->crop.lower_right.y.set(bottom);
+						scene_layer->crop.upper_left.y.bind(upper);
+						scene_layer->crop.lower_right.y.bind(lower);
 					}
 				}
 
 				if (psd_layer->has_timeline())
-					create_timelines(root, dependencies.format_desc, *scene_layer, psd_layer);
+					create_timelines(root, dependencies.format_desc, *scene_layer, psd_layer, variable_prefix);
 
 				if (psd_layer->is_movable() || psd_layer->is_resizable() || (psd_layer->is_text() && !psd_layer->is_static()))
 					current.add(scene_layer, psd_layer->tags(), psd_layer->mask().has_vector());
 
-				if (psd_layer->is_placeholder())
+				if (psd_layer->is_producer())
 					scene_layer->use_mipmap.set(true);
 			}
 		}
@@ -597,8 +744,24 @@ spl::shared_ptr<core::frame_producer> create_psd_scene_producer(const core::fram
 	// Reset all dynamic text fields to empty strings and expose them as a scene parameter.
 	for (auto& text_layer : text_producers_by_layer_name) {
 		text_layer.second->text().set(L"");
-		auto var = root->create_variable<std::wstring>(boost::to_lower_copy(text_layer.first), true, L"");
+		auto var = find_or_create_scene_variable<std::wstring>(root, text_layer.first);
 		text_layer.second->text().bind(var);
+	}
+	// Map all fields requested by the cg producers
+	for (auto& producer : cg_producers_with_mappings) {
+		auto prod = producer.first;
+		auto mappings = producer.second;
+
+		for (auto& mapping : mappings) {
+			auto& prod_var = prod->get_variable(mapping.second);
+
+			if (prod_var.is<double>())
+				prod_var.as<double>().bind(find_or_create_scene_variable<double>(root, mapping.first));
+			else if (prod_var.is<std::wstring>())
+				prod_var.as<std::wstring>().bind(find_or_create_scene_variable<std::wstring>(root, mapping.first));
+			else if (prod_var.is<bool>())
+				prod_var.as<bool>().bind(find_or_create_scene_variable<bool>(root, mapping.first));
+		}
 	}
 
 	auto params2 = params;

@@ -142,11 +142,12 @@ private:
 };
 
 clk_protocol_strategy_factory::clk_protocol_strategy_factory(
+		const core::video_format_repository format_repository,
 		const std::vector<spl::shared_ptr<core::video_channel>>& channels,
 		const spl::shared_ptr<core::cg_producer_registry>& cg_registry,
 		const spl::shared_ptr<const core::frame_producer_registry>& producer_registry)
 {
-	add_command_handlers(command_processor_, channels, channels.at(0), cg_registry, producer_registry);
+	add_command_handlers(command_processor_, format_repository, channels, channels.at(0), cg_registry, producer_registry);
 }
 
 IO::protocol_strategy<wchar_t>::ptr clk_protocol_strategy_factory::create(

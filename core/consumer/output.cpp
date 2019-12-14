@@ -232,6 +232,10 @@ public:
 			*monitor_subject_
 				<< monitor::message("/consume_time") % consume_time
 				<< monitor::message("/profiler/time") % consume_time % (1.0 / format_desc.fps);
+
+			if (consume_time > (1.2 / format_desc.fps)) {
+				CASPAR_LOG(warning) << L"[channel] Performance warning. Consume blocked: " << consume_time;
+			}
 		});
 	}
 

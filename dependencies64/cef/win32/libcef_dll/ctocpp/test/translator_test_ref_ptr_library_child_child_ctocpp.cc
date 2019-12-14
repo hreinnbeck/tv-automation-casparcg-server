@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,17 +9,17 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=db624056b7feffb9456ad3f7f6c969f55dcfb7fb$
+// $hash=b89f429f6503d81608673a4ca0678030418146ff$
 //
 
 #include "libcef_dll/ctocpp/test/translator_test_ref_ptr_library_child_child_ctocpp.h"
 
 // STATIC METHODS - Body may be edited by hand.
 
-CefRefPtr<CefTranslatorTestRefPtrLibraryChildChild>
-CefTranslatorTestRefPtrLibraryChildChild::Create(int value,
-                                                 int other_value,
-                                                 int other_other_value) {
+NO_SANITIZE("cfi-icall")
+CefRefPtr<
+    CefTranslatorTestRefPtrLibraryChildChild> CefTranslatorTestRefPtrLibraryChildChild::
+    Create(int value, int other_value, int other_other_value) {
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
 
   // Execute
@@ -33,6 +33,7 @@ CefTranslatorTestRefPtrLibraryChildChild::Create(int value,
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 int CefTranslatorTestRefPtrLibraryChildChildCToCpp::GetOtherOtherValue() {
   cef_translator_test_ref_ptr_library_child_child_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, get_other_other_value))
@@ -47,6 +48,7 @@ int CefTranslatorTestRefPtrLibraryChildChildCToCpp::GetOtherOtherValue() {
   return _retval;
 }
 
+NO_SANITIZE("cfi-icall")
 void CefTranslatorTestRefPtrLibraryChildChildCToCpp::SetOtherOtherValue(
     int value) {
   cef_translator_test_ref_ptr_library_child_child_t* _struct = GetStruct();
@@ -59,6 +61,7 @@ void CefTranslatorTestRefPtrLibraryChildChildCToCpp::SetOtherOtherValue(
   _struct->set_other_other_value(_struct, value);
 }
 
+NO_SANITIZE("cfi-icall")
 int CefTranslatorTestRefPtrLibraryChildChildCToCpp::GetOtherValue() {
   cef_translator_test_ref_ptr_library_child_t* _struct =
       reinterpret_cast<cef_translator_test_ref_ptr_library_child_t*>(
@@ -75,6 +78,7 @@ int CefTranslatorTestRefPtrLibraryChildChildCToCpp::GetOtherValue() {
   return _retval;
 }
 
+NO_SANITIZE("cfi-icall")
 void CefTranslatorTestRefPtrLibraryChildChildCToCpp::SetOtherValue(int value) {
   cef_translator_test_ref_ptr_library_child_t* _struct =
       reinterpret_cast<cef_translator_test_ref_ptr_library_child_t*>(
@@ -88,6 +92,7 @@ void CefTranslatorTestRefPtrLibraryChildChildCToCpp::SetOtherValue(int value) {
   _struct->set_other_value(_struct, value);
 }
 
+NO_SANITIZE("cfi-icall")
 int CefTranslatorTestRefPtrLibraryChildChildCToCpp::GetValue() {
   cef_translator_test_ref_ptr_library_t* _struct =
       reinterpret_cast<cef_translator_test_ref_ptr_library_t*>(GetStruct());
@@ -103,6 +108,7 @@ int CefTranslatorTestRefPtrLibraryChildChildCToCpp::GetValue() {
   return _retval;
 }
 
+NO_SANITIZE("cfi-icall")
 void CefTranslatorTestRefPtrLibraryChildChildCToCpp::SetValue(int value) {
   cef_translator_test_ref_ptr_library_t* _struct =
       reinterpret_cast<cef_translator_test_ref_ptr_library_t*>(GetStruct());

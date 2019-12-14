@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,7 +9,7 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=2e9c65525e5d95bd4293d0529b0ff302cf96ed12$
+// $hash=b12307f9b88f1fe1fd7ec6ba2c17d1599b679618$
 //
 
 #ifndef CEF_LIBCEF_DLL_CTOCPP_BROWSER_HOST_CTOCPP_H_
@@ -86,6 +86,7 @@ class CefBrowserHostCToCpp : public CefCToCppRefCounted<CefBrowserHostCToCpp,
   void WasHidden(bool hidden) OVERRIDE;
   void NotifyScreenInfoChanged() OVERRIDE;
   void Invalidate(PaintElementType type) OVERRIDE;
+  void SendExternalBeginFrame() OVERRIDE;
   void SendKeyEvent(const CefKeyEvent& event) OVERRIDE;
   void SendMouseClickEvent(const CefMouseEvent& event,
                            MouseButtonType type,

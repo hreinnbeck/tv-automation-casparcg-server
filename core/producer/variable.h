@@ -28,6 +28,7 @@
 
 #include <common/log.h>
 #include <common/except.h>
+#include <common/utf.h>
 
 #include "binding.h"
 
@@ -69,6 +70,10 @@ public:
 	template<typename T>
 	binding<T>& as()
 	{
+		if (!this->is<T>()) {
+			CASPAR_THROW_EXCEPTION(user_error() << msg_info(L"Unable to cast bind of type " + type_name() + L" to " + u16(std::string(typeid(T).name()))));
+		}
+
 		return dynamic_cast<variable_impl<T>&>(*this).value();
 	}
 
@@ -82,6 +87,7 @@ public:
 	virtual std::wstring to_string() const = 0;
 private:
 	virtual bool is(const std::type_info& type) const = 0;
+	virtual std::wstring type_name() const = 0;
 };
 
 template<typename T>
@@ -133,9 +139,12 @@ public:
 		return boost::lexical_cast<std::wstring>(value_.get());
 	}
 private:
-	virtual bool is(const std::type_info& type) const
+	bool is(const std::type_info& type) const override
 	{
 		return typeid(T) == type;
+	}
+	std::wstring type_name() const override {
+		return u16(std::string(typeid(T).name()));
 	}
 };
 

@@ -32,6 +32,7 @@ if(MSVC)
 	target_link_libraries(html
 		common
 		core
+		accelerator
 
 		libcef
 		libcef_dll_wrapper
@@ -48,6 +49,7 @@ endif()
 
 # Build and link in libcef_dll_wrapper.
 set(CEF_ROOT "${CEF_PATH}")
+set(CEF_RUNTIME_LIBRARY_FLAG "/MD" CACHE INTERNAL "Force override")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CEF_PATH}/cmake")
 find_package(CEF REQUIRED)
 add_subdirectory(${CEF_LIBCEF_DLL_WRAPPER_PATH} libcef_dll_wrapper)
@@ -71,6 +73,7 @@ casparcg_add_runtime_dependency("${CEF_RESOURCE_PATH}/devtools_resources.pak")
 casparcg_add_runtime_dependency("${CEF_RESOURCE_PATH}/icudtl.dat")
 casparcg_add_runtime_dependency("${CEF_BIN_PATH}/natives_blob.bin")
 casparcg_add_runtime_dependency("${CEF_BIN_PATH}/snapshot_blob.bin")
+casparcg_add_runtime_dependency("${CEF_BIN_PATH}/v8_context_snapshot.bin")
 casparcg_add_runtime_dependency("${CEF_BIN_PATH}/swiftshader")
 
 if(MSVC)

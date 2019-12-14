@@ -416,20 +416,22 @@ boost::rational<int> read_framerate(AVFormatContext& context, const boost::ratio
 		}
 
 		boost::rational<int> fps(time_base.den, time_base.num);
-		boost::rational<int> closest_fps(0);
-
-		for (auto video_mode : enum_constants<core::video_format>())
-		{
-			auto format = core::video_format_desc(core::video_format(video_mode));
-
-			auto diff1 = boost::abs(boost::rational<int>(format.time_scale, format.duration) - fps);
-			auto diff2 = boost::abs(closest_fps - fps);
-
-			if (diff1 < diff2)
-				closest_fps = boost::rational<int>(format.time_scale, format.duration);
-		}
-
-		return closest_fps;
+		return fps;
+		// TODO - this may want reenabling, but with the pending rewrite of the ffmpeg module it feels a waste to funnel the required data through just to have it removed soon.
+//		boost::rational<int> closest_fps(0);
+//
+//		for (auto video_mode : enum_constants<core::video_format>())
+//		{
+//			auto format = core::video_format_desc(core::video_format(video_mode));
+//
+//			auto diff1 = boost::abs(boost::rational<int>(format.time_scale, format.duration) - fps);
+//			auto diff2 = boost::abs(closest_fps - fps);
+//
+//			if (diff1 < diff2)
+//				closest_fps = boost::rational<int>(format.time_scale, format.duration);
+//		}
+//
+//		return closest_fps;
 	}
 
 	return fail_value;
@@ -790,11 +792,6 @@ std::string to_string(const boost::rational<int>& framerate)
 {
 	return boost::lexical_cast<std::string>(framerate.numerator())
 		+ "/" + boost::lexical_cast<std::string>(framerate.denominator()) + " (" + boost::lexical_cast<std::string>(static_cast<double>(framerate.numerator()) / static_cast<double>(framerate.denominator())) + ") fps";
-}
-
-std::vector<int> find_audio_cadence(const boost::rational<int>& framerate)
-{
-	return core::find_audio_cadence(framerate, is_logging_quiet_for_thread());
 }
 
 //

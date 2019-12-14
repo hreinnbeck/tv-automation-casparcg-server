@@ -43,6 +43,7 @@
 #include <boost/algorithm/string/predicate.hpp>
 #include <boost/optional.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/property_tree/json_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 
 #include <future>
@@ -321,19 +322,22 @@ class cg_proxy_as_producer : public frame_producer
 
 	std::map<std::wstring, std::shared_ptr<core::variable>>	variables_;
 	std::vector<std::wstring>								variable_names_;
+	bool													template_data_as_json_;
 	core::binding<std::wstring>								template_data_xml_						{ [=] { return generate_template_data_xml(); } };
 	std::shared_ptr<void>									template_data_change_subscription_;
-	bool													is_playing_								= false;
 public:
 	cg_proxy_as_producer(
 			spl::shared_ptr<frame_producer> producer,
 			spl::shared_ptr<cg_proxy> proxy,
 			const std::wstring& template_name,
+			const bool autoplay,
+			const bool data_as_json,
 			const std::vector<std::wstring>& parameter_specification)
 		: producer_(std::move(producer))
 		, proxy_(std::move(proxy))
 		, template_name_(std::move(template_name))
 		, producer_has_its_own_variables_defined_(!producer_->get_variables().empty())
+		, template_data_as_json_(data_as_json)
 	{
 		if (parameter_specification.size() % 2 != 0)
 			CASPAR_THROW_EXCEPTION(user_error() << msg_info("Parameter specification must be a sequence of type and parameter name pairs"));
@@ -354,10 +358,11 @@ public:
 				CASPAR_THROW_EXCEPTION(user_error() << msg_info("The type in a parameter specification must be either string or number"));
 		}
 
+		proxy_->add(0, template_name_, autoplay, L"", template_data_xml_.get());
+
 		template_data_change_subscription_ = template_data_xml_.on_change([=]
 		{
-			if (is_playing_)
-				proxy_->update(0, template_data_xml_.get());
+			proxy_->update(0, template_data_xml_.get());
 		});
 	}
 
@@ -367,12 +372,11 @@ public:
 	{
 		auto& command = params.at(0);
 
-		if (command == L"play()")
-		{
-			proxy_->add(0, template_name_, true, L"", template_data_xml_.get());
-			is_playing_ = true;
-		}
-		else if (command == L"stop()")
+		if (command == L"play()") {
+			proxy_->play(0);
+			// Flash doesnt accept update until play, so send an extra update after play to be safe
+			proxy_->update(0, template_data_xml_.get());
+		}  else if (command == L"stop()")
 			proxy_->stop(0, 0);
 		else if (command == L"next()")
 			proxy_->next(0);
@@ -424,6 +428,21 @@ public:
 private:
 	std::wstring generate_template_data_xml() const
 	{
+		if (template_data_as_json_)
+		{
+			boost::property_tree::wptree document;
+
+			for (auto& parameter_name : variable_names_)
+			{
+				document.add_child(parameter_name, boost::property_tree::wptree(variables_.at(parameter_name)->to_string()));
+			}
+
+			std::wstringstream json;
+			boost::property_tree::json_parser::write_json(json, document, false);
+			CASPAR_LOG(warning) << json.str();
+			return json.str();
+		}
+
 		boost::property_tree::wptree document;
 		boost::property_tree::wptree template_data;
 
@@ -462,16 +481,18 @@ private:
 void describe_cg_proxy_as_producer(core::help_sink& sink, const core::help_repository& repo)
 {
 	sink.short_description(L"Wraps any CG producer for compatibility with scene producer.");
-	sink.syntax(L"[CG] [template:string] {[param1_type:\"string\",\"number\"] [param1_name:string] {[param2_type:\"string\",\"number\"] [param2_name:string] {...}}}");
+	sink.syntax(L"[CG] [template:string] {[AUTOPLAY]} {[JSON]|[XML]} {[param1_type:\"string\",\"number\"] [param1_name:string] {[param2_type:\"string\",\"number\"] [param2_name:string] {...}}}");
 	sink.para()->text(L"Wraps any CG producer for compatibility with scene producer.");
 	sink.para()->text(L"It allows the user to specify what template parameters should be exposed to the parent scene. This is only required for Flash and HTML templates. PSD and Scene templates does this automatically.");
 	sink.para()->text(L"Examples only really usable from within the scene producer implementation:");
-	sink.example(L">> PLAY 1-10 [CG] folder/flas_template string f0 number f1");
+	sink.example(L">> PLAY 1-10 [CG] folder/flash_template string f0 number f1");
 	sink.para()->text(L"...followed by the scene producer setting variables causing the equivalent of a ")->code(L"CG ADD")->text(L". Then the following calls can be made:");
 	sink.example(L">> CALL 1-10 play()");
 	sink.example(L">> CALL 1-10 next()");
 	sink.example(L">> CALL 1-10 invoke() label");
 	sink.example(L">> CALL 1-10 stop()");
+	sink.para()->text(L"There is an optional autoplay parameter, and an optional parameter to specify what format to compile the variables data to (default xml):");
+	sink.example(L">> PLAY 1-10 [CG] folder/flash_template [AUTOPLAY] [JSON] string f0");
 }
 
 spl::shared_ptr<frame_producer> create_cg_proxy_as_producer(const core::frame_producer_dependencies& dependencies, const std::vector<std::wstring>& params)
@@ -484,13 +505,19 @@ spl::shared_ptr<frame_producer> create_cg_proxy_as_producer(const core::frame_pr
 	auto proxy			= dependencies.cg_registry->get_proxy(producer);
 	auto params2		= params;
 
+	int skip_params = 2;
+	const bool autoplay = params.size() > skip_params && boost::iequals(params.at(skip_params), L"[AUTOPLAY]");
+	if (autoplay) skip_params++;
+	const bool json_data = params.size() > skip_params && boost::iequals(params.at(skip_params), L"[JSON]");
+	if (json_data || (params.size() > skip_params && boost::iequals(params.at(skip_params), L"[XML]"))) skip_params++;
+
 	if (proxy == cg_proxy::empty())
 		CASPAR_THROW_EXCEPTION(file_not_found() << msg_info(L"No template with name " + template_name + L" found"));
 
 	// Remove "[CG]" and template_name to only leave the parameter specification part
-	params2.erase(params2.begin(), params2.begin() + 2);
+	params2.erase(params2.begin(), params2.begin() + skip_params);
 
-	return spl::make_shared<cg_proxy_as_producer>(std::move(producer), std::move(proxy), template_name, params2);
+	return spl::make_shared<cg_proxy_as_producer>(std::move(producer), std::move(proxy), template_name, autoplay, json_data, params2);
 }
 
 void init_cg_proxy_as_producer(core::module_dependencies dependencies)

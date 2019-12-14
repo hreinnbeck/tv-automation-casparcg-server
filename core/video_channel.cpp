@@ -210,6 +210,9 @@ struct video_channel::impl final
 
             auto frame_time = frame_timer.elapsed() * format_desc.fps * 0.5;
             graph_->set_value("tick-time", frame_time);
+			if (frame_timer.elapsed() > (1.5 / video_format_desc().fps)) { // If over 50% above target frame time
+				CASPAR_LOG(warning) << L"[channel] Performance warning. Tick blocked: " << frame_timer.elapsed();
+			}
 
             *monitor_subject_ << monitor::message("/profiler/time") % frame_timer.elapsed() %
                                      (1.0 / video_format_desc().fps)

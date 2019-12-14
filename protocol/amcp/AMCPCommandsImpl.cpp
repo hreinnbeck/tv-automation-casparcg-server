@@ -32,6 +32,8 @@
 #include "amcp_command_repository.h"
 #include "amcp_args.h"
 
+#include <accelerator/ogl/util/device.h>
+
 #include <common/env.h>
 
 #include <common/base64.h>
@@ -53,6 +55,7 @@
 #include <core/mixer/mixer.h>
 #include <core/producer/cg_proxy.h>
 #include <core/producer/frame_producer.h>
+#include <core/producer/color/color_producer.h>
 #include <core/producer/layer.h>
 #include <core/producer/media_info/media_info.h>
 #include <core/producer/media_info/media_info_repository.h>
@@ -309,6 +312,7 @@ core::frame_producer_dependencies get_producer_dependencies(const std::shared_pt
 {
     return core::frame_producer_dependencies(channel->frame_factory(),
                                              get_channels(ctx),
+                                             ctx.static_context->format_repository,
                                              channel->video_format_desc(),
                                              ctx.static_context->producer_registry,
                                              ctx.static_context->cg_registry);
@@ -480,32 +484,41 @@ std::wstring loadbg_command(command_context& ctx)
     core::diagnostics::call_context::for_thread().layer         = ctx.layer_index();
 
     auto channel = ctx.channel.raw_channel;
-    auto pFP =
-        ctx.static_context->producer_registry->create_producer(get_producer_dependencies(channel, ctx), ctx.parameters);
+	bool auto_play = contains_param(L"AUTO", ctx.parameters);
 
-    if (pFP == frame_producer::empty())
-        CASPAR_THROW_EXCEPTION(file_not_found() << msg_info(ctx.parameters.size() > 0 ? ctx.parameters[0] : L""));
+	auto deps = get_producer_dependencies(channel, ctx);
+	try {
+		auto pFP =
+			ctx.static_context->producer_registry->create_producer(deps, ctx.parameters);
 
-    bool auto_play = contains_param(L"AUTO", ctx.parameters);
+		if (pFP == frame_producer::empty())
+			CASPAR_THROW_EXCEPTION(file_not_found() << msg_info(ctx.parameters.size() > 0 ? ctx.parameters[0] : L""));
 
-    spl::shared_ptr<frame_producer> transition_producer = frame_producer::empty();
-    transition_info                 transitionInfo;
-    sting_info                      stingInfo;
 
-    if (try_match_sting(ctx.parameters, stingInfo)) {
-        transition_producer = create_sting_producer(
-            get_producer_dependencies(channel, ctx), channel->video_format_desc().field_mode, pFP, stingInfo);
-    } else {
-        std::wstring message;
-        for (size_t n = 0; n < ctx.parameters.size(); ++n)
-            message += boost::to_upper_copy(ctx.parameters[n]) + L" ";
+		spl::shared_ptr<frame_producer> transition_producer = frame_producer::empty();
+		transition_info                 transitionInfo;
+		sting_info                      stingInfo;
 
-        // Always fallback to transition
-        try_match_transition(message, transitionInfo);
-        transition_producer = create_transition_producer(channel->video_format_desc().field_mode, pFP, transitionInfo);
-    }
+		if (try_match_sting(ctx.parameters, stingInfo)) {
+			transition_producer = create_sting_producer(
+				get_producer_dependencies(channel, ctx), channel->video_format_desc().field_mode, pFP, stingInfo);
+		} else {
+			std::wstring message;
+			for (size_t n = 0; n < ctx.parameters.size(); ++n)
+				message += boost::to_upper_copy(ctx.parameters[n]) + L" ";
 
-    ctx.channel.stage->load(ctx.layer_index(), transition_producer, false, auto_play); // TODO: LOOP
+			// Always fallback to transition
+			try_match_transition(message, transitionInfo);
+			transition_producer = create_transition_producer(channel->video_format_desc().field_mode, pFP, transitionInfo);
+		}
+
+		ctx.channel.stage->load(ctx.layer_index(), transition_producer, false, auto_play); // TODO: LOOP
+	} catch (file_not_found&) {
+		if (contains_param(L"CLEAR_ON_404", ctx.parameters)) {
+			ctx.channel.stage->load(ctx.layer_index(), core::create_color_producer_simple(deps, L"EMPTY"), false, auto_play);
+		}
+		throw;
+	}
 
     return L"202 LOADBG OK\r\n";
 }
@@ -528,10 +541,23 @@ std::wstring load_command(command_context& ctx)
     core::diagnostics::scoped_call_context save;
     core::diagnostics::call_context::for_thread().video_channel = ctx.channel_index + 1;
     core::diagnostics::call_context::for_thread().layer         = ctx.layer_index();
-    auto pFP = ctx.static_context->producer_registry->create_producer(
-        get_producer_dependencies(ctx.channel.raw_channel, ctx), ctx.parameters);
-	auto pFP2 = create_transition_producer(ctx.channel.raw_channel->video_format_desc().field_mode, pFP, transition_info{});
-    ctx.channel.stage->load(ctx.layer_index(), pFP2, true);
+
+	if (ctx.parameters.empty()) {
+		// Must be a promoting load
+		ctx.channel.stage->preview(ctx.layer_index());
+	} else {
+		auto deps = get_producer_dependencies(ctx.channel.raw_channel, ctx);
+		try {
+			auto pFP = ctx.static_context->producer_registry->create_producer(deps, ctx.parameters);
+			auto pFP2 = create_transition_producer(ctx.channel.raw_channel->video_format_desc().field_mode, pFP, transition_info{});
+			ctx.channel.stage->load(ctx.layer_index(), pFP2, true);
+		} catch (file_not_found&) {
+			if (contains_param(L"CLEAR_ON_404", ctx.parameters)) {
+				ctx.channel.stage->load(ctx.layer_index(), core::create_color_producer_simple(deps, L"EMPTY"), true);
+			}
+			throw;
+		}
+	}
 
     return L"202 LOAD OK\r\n";
 }
@@ -557,8 +583,15 @@ void play_describer(core::help_sink& sink, const core::help_repository& reposito
 
 std::wstring play_command(command_context& ctx)
 {
-    if (!ctx.parameters.empty())
-        loadbg_command(ctx);
+	try {
+		if (!ctx.parameters.empty())
+			loadbg_command(ctx);
+	} catch (file_not_found&) {
+		if (contains_param(L"CLEAR_ON_404", ctx.parameters)) {
+			ctx.channel.stage->play(ctx.layer_index());
+		}
+		throw;
+	}
 
     ctx.channel.stage->play(ctx.layer_index());
 
@@ -880,7 +913,7 @@ std::wstring set_command(command_context& ctx)
     std::wstring value = boost::to_upper_copy(ctx.parameters[1]);
 
     if (name == L"MODE") {
-        auto format_desc = core::video_format_desc(value);
+        auto format_desc = ctx.static_context->format_repository.find(value);
         if (format_desc.format != core::video_format::invalid) {
             ctx.channel.raw_channel->video_format_desc(format_desc);
             return L"202 SET MODE OK\r\n";
@@ -2940,7 +2973,6 @@ std::wstring diag_command(command_context& ctx)
     return L"202 DIAG OK\r\n";
 }
 
-/*
 void gl_info_describer(core::help_sink& sink, const core::help_repository& repo)
 {
     sink.short_description(L"Get information about the allocated and pooled OpenGL resources.");
@@ -2985,7 +3017,7 @@ std::wstring gl_gc_command(command_context& ctx)
     device->gc().wait();
 
     return L"202 GL GC OK\r\n";
-}*/
+}
 
 static const int WIDTH = 80;
 
@@ -3288,7 +3320,7 @@ void ping_describer(core::help_sink& sink, const core::help_repository& repo)
 void register_commands(std::shared_ptr<amcp_command_repository_wrapper>& repo)
 {
     repo->register_channel_command(L"Basic Commands", L"LOADBG", loadbg_describer, loadbg_command, 1);
-    repo->register_channel_command(L"Basic Commands", L"LOAD", load_describer, load_command, 1);
+    repo->register_channel_command(L"Basic Commands", L"LOAD", load_describer, load_command, 0);
     repo->register_channel_command(L"Basic Commands", L"PLAY", play_describer, play_command, 0);
     repo->register_channel_command(L"Basic Commands", L"PAUSE", pause_describer, pause_command, 0);
     repo->register_channel_command(L"Basic Commands", L"RESUME", resume_describer, resume_command, 0);
@@ -3381,8 +3413,8 @@ void register_commands(std::shared_ptr<amcp_command_repository_wrapper>& repo)
     repo->register_command(L"Query Commands", L"INFO THREADS", info_threads_describer, info_threads_command, 0);
     repo->register_channel_command(L"Query Commands", L"INFO DELAY", info_delay_describer, info_delay_command, 0);
     repo->register_command(L"Query Commands", L"DIAG", diag_describer, diag_command, 0);
-    // repo->register_command(L"Query Commands", L"GL INFO", gl_info_describer, gl_info_command, 0);
-    // repo->register_command(L"Query Commands", L"GL GC", gl_gc_describer, gl_gc_command, 0);
+    repo->register_command(L"Query Commands", L"GL INFO", gl_info_describer, gl_info_command, 0);
+    repo->register_command(L"Query Commands", L"GL GC", gl_gc_describer, gl_gc_command, 0);
     repo->register_command(L"Query Commands", L"BYE", bye_describer, bye_command, 0);
     repo->register_command(L"Query Commands", L"KILL", kill_describer, kill_command, 0);
     repo->register_command(L"Query Commands", L"RESTART", restart_describer, restart_command, 0);

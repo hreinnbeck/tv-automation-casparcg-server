@@ -10,6 +10,15 @@
 
 namespace caspar { namespace core { namespace text {
 
+struct text_char
+{
+	int atlas_index;
+	frame_geometry::coord ul_coord;
+	frame_geometry::coord ur_coord;
+	frame_geometry::coord ll_coord;
+	frame_geometry::coord lr_coord;
+};
+
 class texture_atlas;
 enum class unicode_block;
 
@@ -20,10 +29,10 @@ class texture_font
 	const texture_font& operator=(const texture_font&);
 
 public:
-	texture_font(texture_atlas&, const text_info&, bool normalize_coordinates);
-	void load_glyphs(unicode_block block, const color<double>& col);
+	texture_font(texture_atlas_set&, const text_info&, color<double>& col);
+	bool load_blocks_for_string(const std::wstring str);
 	void set_tracking(double tracking);
-	std::vector<frame_geometry::coord> create_vertex_stream(const std::wstring& str, int x, int y, int parent_width, int parent_height, string_metrics* metrics, double shear = 0.0);
+	std::vector<text_char> create_vertex_stream(const std::wstring& str, int x, int y, int parent_width, int parent_height, bool normalize_coordinates, string_metrics* metrics, double shear = 0.0);
 	std::wstring get_name() const;
 	double get_size() const;
 
@@ -253,7 +262,9 @@ enum class unicode_block
 	Tags,
 	Variation_Selectors_Supplement,
 	Supplementary_Private_Use_Area_A,
-	Supplementary_Private_Use_Area_B
+	Supplementary_Private_Use_Area_B,
+
+	count
 };
 
 }}}

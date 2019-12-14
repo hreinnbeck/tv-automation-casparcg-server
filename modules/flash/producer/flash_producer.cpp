@@ -334,6 +334,7 @@ public:
 		return L"flash-player[" + boost::filesystem::path(filename_).filename().wstring()
 				  + L"|" + boost::lexical_cast<std::wstring>(width_)
 				  + L"x" + boost::lexical_cast<std::wstring>(height_)
+				  + L"@" + boost::lexical_cast<std::wstring>(fps())
 				  + L"]";		
 	}
 };

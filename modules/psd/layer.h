@@ -161,7 +161,8 @@ public:
 	bool is_static() const;
 	bool is_movable() const;
 	bool is_resizable() const;
-	bool is_placeholder() const;
+	bool is_producer() const;
+	bool is_cg_producer() const;
 	bool is_cornerpin() const;
 	layer_tag tags() const;
 };

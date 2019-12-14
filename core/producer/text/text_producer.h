@@ -46,8 +46,8 @@ class text_producer : public frame_producer_base
 {
 public:
 	text_producer(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str,
-		text::text_info& text_info, long parent_width, long parent_height, bool standalone);
-	static spl::shared_ptr<text_producer> create(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone = false);
+		text::text_info& text_info, long parent_width, long parent_height, bool standalone, bool croppable);
+	static spl::shared_ptr<text_producer> create(const spl::shared_ptr<frame_factory>& frame_factory, int x, int y, const std::wstring& str, text::text_info& text_info, long parent_width, long parent_height, bool standalone = false, bool croppable = false);
 
 	draw_frame receive_impl() override;
 	std::future<std::wstring> call(const std::vector<std::wstring>& param) override;

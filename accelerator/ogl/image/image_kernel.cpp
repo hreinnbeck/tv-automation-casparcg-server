@@ -217,6 +217,87 @@ struct image_kernel::impl
 			coord.vertex_y += f_p[1];
 		};
 
+		if (!is_default_geometry && params.geometry.type() == core::frame_geometry::geometry_type::quad_list_croppable) {
+			// This assumes that the quads are not skewed or rotated in any way, as that is all that is needed for now, and it keeps the calculations a lot simpler
+
+			const double top = crop.ul[1] - 1;
+			const double bot = crop.lr[1] - 1;
+			const double left = crop.ul[0];
+			const double right = crop.lr[0];
+			// if crop lines are flipped, then drop
+			if (top > bot || right < left)
+				return;
+
+			// For each quad
+			for (auto i = 0; i < coords.size(); i += 4) {
+				auto do_crop_y = [&](core::frame_geometry::coord& c1, core::frame_geometry::coord& c2, double y)
+				{
+					auto y_range = c1.vertex_y - c2.vertex_y;
+					auto tex_range = c1.texture_y - c2.texture_y;
+
+					auto y_range_after = y - c2.vertex_y;
+					auto y_delta = y_range_after / y_range;
+					auto new_tex_y = tex_range * y_delta;
+
+					c1.vertex_y = y;
+					c1.texture_y = new_tex_y + c2.texture_y;
+				};
+				auto do_crop_x = [&](core::frame_geometry::coord& c1, core::frame_geometry::coord& c2, double x)
+				{
+					auto x_range = c1.vertex_x - c2.vertex_x;
+					auto tex_range = c1.texture_x - c2.texture_x;
+
+					auto x_range_after = x - c2.vertex_x;
+					auto x_delta = x_range_after / x_range;
+					auto new_tex_x = tex_range * x_delta;
+
+					c1.vertex_x = x;
+					c1.texture_x = new_tex_x + c2.texture_x;
+				};
+
+				// TOP
+				if (coords[i].vertex_y < top) {
+					do_crop_y(coords[i], coords[i + 3], top);
+				}
+				if (coords[i + 1].vertex_y < top) {
+					do_crop_y(coords[i + 1], coords[i + 2], top);
+				}
+
+				// BOTTOM
+				if (coords[i + 3].vertex_y > bot) {
+					do_crop_y(coords[i + 3], coords[i], bot);
+				}
+				if (coords[i + 2].vertex_y > bot) {
+					do_crop_y(coords[i + 2], coords[i + 1], bot);
+				}
+
+				// LEFT
+				if (coords[i].vertex_x < left) {
+					do_crop_x(coords[i], coords[i + 1], left);
+				}
+				if (coords[i + 3].vertex_x < left) {
+					do_crop_x(coords[i + 3], coords[i + 2], left);
+				}
+
+				// RIGHT
+				if (coords[i + 1].vertex_x > right) {
+					do_crop_x(coords[i + 1], coords[i], right);
+				}
+				if (coords[i + 2].vertex_x > right) {
+					do_crop_x(coords[i + 2], coords[i + 3], right);
+				}
+
+				// if char is flipped because of crop, then drop. assumes a lot about the shape
+				if (coords[i].vertex_y > coords[i + 3].vertex_y || coords[i].vertex_x > coords[i + 1].vertex_x) {
+					coords[i] = core::frame_geometry::coord{};
+					coords[i + 1] = core::frame_geometry::coord{};
+					coords[i + 2] = core::frame_geometry::coord{};
+					coords[i + 3] = core::frame_geometry::coord{};
+					continue;
+				}
+			}
+		}
+
 		int corner = 0;
 		for (auto& coord : coords)
 		{
@@ -421,6 +502,7 @@ struct image_kernel::impl
 		{
 		case core::frame_geometry::geometry_type::quad:
 		case core::frame_geometry::geometry_type::quad_list:
+		case core::frame_geometry::geometry_type::quad_list_croppable:
 			{
 				glClientActiveTexture(GL_TEXTURE0);
 

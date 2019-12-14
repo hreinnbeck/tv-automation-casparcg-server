@@ -1,4 +1,4 @@
-// Copyright (c) 2017 The Chromium Embedded Framework Authors. All rights
+// Copyright (c) 2019 The Chromium Embedded Framework Authors. All rights
 // reserved. Use of this source code is governed by a BSD-style license that
 // can be found in the LICENSE file.
 //
@@ -9,13 +9,14 @@
 // implementations. See the translator.README.txt file in the tools directory
 // for more information.
 //
-// $hash=7ee7e6684f3703ede9b5dcfb40170923a9d5242e$
+// $hash=f0726f007fd7ead352058c1301d19cda693e940c$
 //
 
 #include "libcef_dll/ctocpp/auth_callback_ctocpp.h"
 
 // VIRTUAL METHODS - Body may be edited by hand.
 
+NO_SANITIZE("cfi-icall")
 void CefAuthCallbackCToCpp::Continue(const CefString& username,
                                      const CefString& password) {
   cef_auth_callback_t* _struct = GetStruct();
@@ -24,17 +25,13 @@ void CefAuthCallbackCToCpp::Continue(const CefString& username,
 
   // AUTO-GENERATED CONTENT - DELETE THIS COMMENT BEFORE MODIFYING
 
-  // Verify param: username; type: string_byref_const
-  DCHECK(!username.empty());
-  if (username.empty())
-    return;
-  // Unverified params: password
+  // Unverified params: username, password
 
   // Execute
   _struct->cont(_struct, username.GetStruct(), password.GetStruct());
 }
 
-void CefAuthCallbackCToCpp::Cancel() {
+NO_SANITIZE("cfi-icall") void CefAuthCallbackCToCpp::Cancel() {
   cef_auth_callback_t* _struct = GetStruct();
   if (CEF_MEMBER_MISSING(_struct, cancel))
     return;

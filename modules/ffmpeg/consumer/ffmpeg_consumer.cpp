@@ -945,6 +945,13 @@ private:
 						enc->field_order = AV_FIELD_PROGRESSIVE;
 
 					filt_frame->quality = enc->global_quality;
+					
+					// Hardcoded changes for MJPEG output being used as previews
+					if (enc->codec->id == AV_CODEC_ID_MJPEG) {
+						filt_frame->format = AV_PIX_FMT_YUVJ420P;
+						enc->qmin = 2;
+						enc->qmax = 10;
+					}
 
 					//if (!enc->me_threshold)
 						//filt_frame->pict_type = AV_PICTURE_TYPE_NONE;
